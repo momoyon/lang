@@ -1,0 +1,6 @@
+// # import "stdio";
+
+func main(int argc, string argv[]): int {
+    print("Hello, World!");
+    return 0;
+}
