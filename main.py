@@ -9,11 +9,19 @@ def dlog(msg):
         pprint.pp(f"[DEBUG] {msg}")
 
 class Token_Type(IntEnum):
-    IDENTIFIER = auto()
-    NUMBER = auto()
-    SYMBOL = auto()
-    STRING = auto()
-    COUNT  = auto()
+    IDENTIFIER         = auto()
+    NUMBER             = auto()
+    OPEN_PAREN         = auto()
+    CLOSE_PAREN        = auto()
+    COMMA              = auto()
+    OPEN_SQUARE_BRACE  = auto()
+    CLOSE_SQUARE_BRACE = auto()
+    COLON              = auto()
+    OPEN_BRACE         = auto()
+    CLOSE_BRACE        = auto()
+    SEMICOLON          = auto()
+    STRING             = auto()
+    COUNT              = auto()
 
 class Token:
     def __init__(self, typ, literal_string):
@@ -21,10 +29,18 @@ class Token:
         self.literal_string = literal_string
 
     def type_as_str(self):
-        assert Token_Type.COUNT == 5, "Every enum value is not handled!"
+        assert Token_Type.COUNT == 13, "Every enum value is not handled!"
         if self.typ == Token_Type.IDENTIFIER: return "IDENTIFIER";
         if self.typ == Token_Type.NUMBER: return "NUMBER";
-        if self.typ == Token_Type.SYMBOL: return "SYMBOL";
+        if self.typ == Token_Type.OPEN_PAREN: return "OPEN_PAREN";
+        if self.typ == Token_Type.CLOSE_PAREN: return "CLOSE_PAREN";
+        if self.typ == Token_Type.COMMA: return "COMMA";
+        if self.typ == Token_Type.OPEN_SQUARE_BRACE: return "OPEN_SQUARE_BRACE";
+        if self.typ == Token_Type.CLOSE_SQUARE_BRACE: return "CLOSE_SQUARE_BRACE";
+        if self.typ == Token_Type.COLON: return "COLON";
+        if self.typ == Token_Type.OPEN_BRACE: return "OPEN_BRACE";
+        if self.typ == Token_Type.CLOSE_BRACE: return "CLOSE_BRACE";
+        if self.typ == Token_Type.SEMICOLON: return "SEMICOLON";
         if self.typ == Token_Type.STRING: return "STRING";
 
     def __repr__(self):
@@ -144,7 +160,31 @@ class Lexer:
         elif c.isdigit(): # TODO: Only handles base-10 numbers
             return Token(Token_Type.NUMBER, self.consume_number())
         elif c in "(),[]{}:;":
-            return Token(Token_Type.SYMBOL, self.consume_symbol())
+            symbol = self.consume_symbol()
+            token = Token(Token_Type.COUNT, symbol)
+            if symbol == "(":
+                token.typ = Token_Type.OPEN_PAREN
+            elif symbol == ")":
+                token.typ = Token_Type.CLOSE_PAREN
+            elif symbol == ",":
+                token.typ = Token_Type.COMMA
+            elif symbol == "[":
+                token.typ = Token_Type.OPEN_SQUARE_BRACE
+            elif symbol == "]":
+                token.typ = Token_Type.CLOSE_SQUARE_BRACE
+            elif symbol == ":":
+                token.typ = Token_Type.COLON
+            elif symbol == "{":
+                token.typ = Token_Type.OPEN_BRACE
+            elif symbol == "}":
+                token.typ = Token_Type.CLOSE_BRACE
+            elif symbol == ";":
+                token.typ = Token_Type.SEMICOLON
+            else:
+                raise Exception(f"Unexpected symbol '{symbol}'")
+
+
+            return token
         elif c == '"':
             return Token(Token_Type.STRING, self.consume_string())
         else:
