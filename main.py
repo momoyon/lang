@@ -183,7 +183,6 @@ class Lexer:
             else:
                 raise Exception(f"Unexpected symbol '{symbol}'")
 
-
             return token
         elif c == '"':
             return Token(Token_Type.STRING, self.consume_string())
@@ -197,14 +196,22 @@ def main():
     if (len(sys.argv) <= 0):
         raise Exception("Please provide the filename!")
     filename = sys.argv.pop(0)
+    # 1. Source
     src = ""
     with open(filename, mode='r') as file:
         src = file.read()
+
+    # 2. Lexical Analysis
     lexer = Lexer(src)
+    tokens = []
     token = lexer.next_token()
     while token:
-        dlog(token)
+        tokens.append(token)
         token = lexer.next_token()
+
+    pprint.pp(tokens)
+
+    # 3. TODO: Syntactical Analysis
 
 
 if __name__ == '__main__':
