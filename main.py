@@ -21,7 +21,7 @@ class Token:
         self.literal_string = literal_string
 
     def type_as_str(self):
-        assert(Token_Type.COUNT == 4, "Every enum value is not handled!")
+        assert Token_Type.COUNT == 5, "Every enum value is not handled!"
         if self.typ == Token_Type.IDENTIFIER: return "IDENTIFIER";
         if self.typ == Token_Type.NUMBER: return "NUMBER";
         if self.typ == Token_Type.SYMBOL: return "SYMBOL";
@@ -110,7 +110,18 @@ class Lexer:
         return symbol
 
     def consume_string(self) -> str:
+        c = self.current_char()
+        assert(c == '"')
+        # TODO: Does the string include the ""s? (for now it doesn't)
         string = ''
+        c = self.advance_char()
+        while c != '"':
+            string += c
+            c = self.advance_char()
+        # Remove " at the end
+        self.advance_char()
+
+        # dlog(f"String: '{string}'");
         return string
 
     def exhausted(self) -> bool:
