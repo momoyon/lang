@@ -46,7 +46,7 @@ class Token:
     def __repr__(self):
         return f"(Token)'{self.literal_string}' ({self.type_as_str()})"
 
-class Lexer:
+class Parser:
     def __init__(self, src):
         self.src = src
         self.line = 0
@@ -191,6 +191,15 @@ class Lexer:
 
         return None
 
+    def lex(self) -> [Token]:
+        tokens = []
+        token = self.next_token()
+        tokens.append(token)
+        while token:
+            token = self.next_token()
+            tokens.append(token)
+        return tokens
+
 def main():
     program  = sys.argv.pop(0)
     if (len(sys.argv) <= 0):
@@ -202,16 +211,18 @@ def main():
         src = file.read()
 
     # 2. Lexical Analysis
-    lexer = Lexer(src)
-    tokens = []
-    token = lexer.next_token()
-    while token:
-        tokens.append(token)
-        token = lexer.next_token()
-
-    pprint.pp(tokens)
+    parser = Parser(src)
+    tokens = parser.lex()
+    # pprint.pp(tokens)
 
     # 3. TODO: Syntactical Analysis
+    for i in range(0, len(tokens)-1):
+        token = tokens[i]
+        next  = tokens[i+1]
+
+        # pprint.pp("------------------------------")
+        # pprint.pp(f"  Token: {token}")
+        # pprint.pp(f"  Next:  {next}")
 
 
 if __name__ == '__main__':
