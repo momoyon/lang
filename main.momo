@@ -1,8 +1,4 @@
-
-    // Comment test
-
 #import "stdio";
-
 func main(argc: int, argv: string[]): int {
     // This is a comment!
     print("Hello, World!");
