@@ -1,6 +1,7 @@
 // # import "stdio";
 
-func main(argc: int, argv: string[]): int {
-    print("Hello, World!");
-    return 0;
-}
+func main(argc: int, argv: string[]
+// ): int {
+//     print("Hello, World!");
+//     return 0;
+// }
