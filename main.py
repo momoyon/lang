@@ -45,6 +45,9 @@ class Token:
         self.value = value
         self.loc = loc
 
+    def __str__(self):
+        return f"Token ({self.typ}, '{self.value}', {self.loc})"
+
 
 class Parser:
     def __init__(self, filename: str):
@@ -77,28 +80,33 @@ class Parser:
         self.cur += 1
         return c
 
-    def consume_string(self):
+    def consume_string(self) -> (str, Loc):
         assert self.current_char() == '"', "Called consume_string() at wrong character!"
         string: str = ''
 
+        string_loc: Loc = Loc(self.filename, self.line, self.row())
         self.consume_char()
         c = self.consume_char()
         while c != '"':
+            # dlog(f"String char '{c}'")
             if self.eof():
                 self.fatal(f"Unterminated string!")
             string += c
             c = self.consume_char()
 
-        assert self.consume_char() == '"', "This shouldn't happen according to the while loop above"
+        # dlog(f"String: `{string}`")
+        # info(f"String terminating char: {self.current_char()}")
+        assert c == '"', "This shouldn't happen according to the while loop above"
 
-        return string
+        return (string, string_loc)
 
     def next_token(self) -> Token | None:
         c = self.current_char()
 
         t: Token | None = None
         if c == '"':
-            t = Token(TokenType.STRING, self.consume_string(), Loc(self.filename, self.line, self.row()))
+            value, loc = self.consume_string()
+            t = Token(TokenType.STRING, value, loc)
             pass
 
         return t
@@ -114,7 +122,9 @@ def main():
 
     parser = Parser(filename)
 
-    # token = parser.next_token()
+    token = parser.next_token()
+
+    print(token)
 
 
 if __name__ == '__main__':
