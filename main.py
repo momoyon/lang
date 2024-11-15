@@ -4,9 +4,23 @@ import pprint
 
 DEBUG = True
 
+# Logging
 def dlog(msg):
     if DEBUG:
         pprint.pp(f"[DEBUG] {msg}")
+
+def info(msg):
+    pprint.pp(f"[INFO] {msg}")
+
+def error(msg):
+    pprint.pp(f"[ERROR] {msg}")
+
+def fatal(msg, err_code = 1):
+    error(msg)
+    exit(err_code)
+
+def usage(program: str):
+    info(f"Usage: {program} <file>")
 
 class Loc:
     def __init__(self, file, line, col):
@@ -17,328 +31,91 @@ class Loc:
     def __str__(self):
         return f"{self.filename}:{self.line}:{self.col}"
 
-def error(msg):
-    pprint.pp(f"[ERROR] {msg}")
+    def get_row(self, cur, bol):
+        return cur - bol
 
-def handle_func(i, tokens):
-    def forward(i):
-        i += 1
-        if i >= len(tokens)-2:
-            error(f"Incomplete function!")
-        token = tokens[i]
-        next  = tokens[i+1]
-
-        return i, token, next
-
-    # ERROR: func is the last or second to last token
-    if i >= len(tokens)-2:
-        error(f"Incomplete function!")
-    token = tokens[i]
-    next  = tokens[i+1]
-    args = []
-
-    func_name = 'INVALID'
-    while i < len(tokens)-2:
-        func_name = token.literal_string
-        if token.typ == Token_Type.IDENTIFIER:
-            # Check if function name is not a keyword
-            if token.literal_string in KEYWORDS:
-                error(f"Function name cannot be a keyword '{token.literal_string}'")
-            break
-        i, token, next = forward(i)
-
-    if next.typ != Token_Type.OPEN_PAREN:
-        error(f"Expected '(' after function name but got '{next.literal_string}'")
-    i, token, next = forward(i)
-
-    dlog(f"Function name '{func_name}'")
-
-    # Get args
-    while i < len(tokens)-2:
-        if token.typ == Token_Type.CLOSE_PAREN:
-            break
-        args.append(token)
-        i, token, next = forward(i)
-
-    # dlog(f"Function args: '{args}'")
-
-    ret_type = 'void'
-
-    # Get return type if present
-    if next.typ == Token_Type.COLON:
-        i, token, next = forward(i)
-        ret_type = next.literal_string
-
-    dlog(f"Function return type: '{ret_type}'")
-
-    exit(1)
-    # assert False, "RAAH"
-KEYWORDS = {
-        'func': handle_func,
-}
-
-class Token_Type(IntEnum):
-    IDENTIFIER         = auto()
-    NUMBER             = auto()
-    # SYMBOLS
-    OPEN_PAREN         = auto()
-    CLOSE_PAREN        = auto()
-    COMMA              = auto()
-    OPEN_SQUARE_BRACE  = auto()
-    CLOSE_SQUARE_BRACE = auto()
-    COLON              = auto()
-    OPEN_BRACE         = auto()
-    CLOSE_BRACE        = auto()
-    SEMICOLON          = auto()
-    HASH               = auto()
-    #
-    STRING             = auto()
-    COUNT              = auto()
-
-assert Token_Type.COUNT == 14, "Check if every symbols are handled here"
-symbols = "(),[]{}:;#"
+class TokenType(IntEnum):
+    IDENT = auto()
+    STRING = auto()
+    COUNT = auto()
 
 class Token:
-    def __init__(self, typ, literal_string):
+    def __init__(self, typ: TokenType, value: str, loc: Loc):
         self.typ = typ
-        self.literal_string = literal_string
+        self.value = value
+        self.loc = loc
 
-    def type_as_str(self):
-        assert Token_Type.COUNT == 14, "Every enum value is not handled!"
-        if self.typ == Token_Type.IDENTIFIER: return "IDENTIFIER";
-        if self.typ == Token_Type.NUMBER: return "NUMBER";
-        if self.typ == Token_Type.OPEN_PAREN: return "OPEN_PAREN";
-        if self.typ == Token_Type.CLOSE_PAREN: return "CLOSE_PAREN";
-        if self.typ == Token_Type.COMMA: return "COMMA";
-        if self.typ == Token_Type.OPEN_SQUARE_BRACE: return "OPEN_SQUARE_BRACE";
-        if self.typ == Token_Type.CLOSE_SQUARE_BRACE: return "CLOSE_SQUARE_BRACE";
-        if self.typ == Token_Type.COLON: return "COLON";
-        if self.typ == Token_Type.OPEN_BRACE: return "OPEN_BRACE";
-        if self.typ == Token_Type.CLOSE_BRACE: return "CLOSE_BRACE";
-        if self.typ == Token_Type.SEMICOLON: return "SEMICOLON";
-        if self.typ == Token_Type.HASH: return "HASH";
-        if self.typ == Token_Type.STRING: return "STRING";
-
-    def __repr__(self):
-        return f"(Token)'{self.literal_string}' ({self.type_as_str()})"
 
 class Parser:
-    def __init__(self, filename):
-        with open(filename, mode='r') as file:
-            self.src = file.read()
+    def __init__(self, filename: str):
+        try:
+            with open(filename, mode='r') as f:
+                self.src = f.read()
+        except FileNotFoundError:
+            fatal(f"File '{filename}' not found!")
+        self.cur = 0
+        self.bol = 0
         self.line = 1
-        self.bol  = 0 # beginning of line
-        self.cur  = 0 # cursor position
-        self.loc = Loc(filename, self.line, 0)
+        self.filename = filename
 
-    def peek_char(self, by=0):
-        if (self.cur+by) > len(self.src)-1:
-            raise Exception("Exhausted!")
-        return self.src[self.cur + by]
+    def row(self):
+        return self.cur - self.bol
 
-    def next_char(self):
-        if self.cur+1 > len(self.src)-1: return -1
-        return self.src[self.cur + 1]
+    def fatal(self, msg):
+        error(f"{self.filename}:{self.line}:{self.row()}: {msg}")
+        exit(1)
 
-    # NOTE: Advances cursor and returns next char, NOT the current char.
-    def advance_char(self, by = 1):
-        self.cur += by
-        return self.current_char()
+    def eof(self) -> bool:
+        return self.cur >= len(self.src)
 
-    def next_line(self):
+    def current_char(self) -> str:
+        assert self.cur < len(self.src), f"cur: {self.cur}, src_len: {len(self.src)}"
+        return self.src[self.cur]
+
+    def consume_char(self) -> str:
         c = self.current_char()
-        while c == '\n':
-            c = self.advance_char()
-            self.bol = self.cur
-            self.loc.line += 1
-        return current_ch
+        self.cur += 1
+        return c
 
-    def consume_comment(self) -> str:
-        assert self.peek_char() == '/' and self.peek_char(1) == '/'
-        comment = ''
-        if c == '/' and n == '/':
-            while c != '\n':
-                comment += c
-                c = self.advance_char()
-            self.next_line()
-        else:
-            return
-        return comment
+    def consume_string(self):
+        assert self.current_char() == '"', "Called consume_string() at wrong character!"
+        string: str = ''
 
-    def consume_identifier(self) -> str:
-        c = self.peek_char()
-        assert(c.isalpha() or c == '_')
-
-        identifier = ''
-
-        while c.isalnum() or c == '_':
-            identifier += c
-            c = self.chop_char()
-        return identifier
-
-    def consume_number(self) -> str:
-        c = self.peek_char()
-        assert(c.isdigit())
-        number = ''
-
-        while c.isdigit():
-            number += c
-            c = self.chop_char()
-
-        # dlog(f"Number: '{number}'")
-        return number
-
-    def consume_symbol(self) -> str:
-        c = self.peek_char()
-        assert(c in symbols)
-        symbol = c
-        self.chop_char()
-        return symbol
-
-    def consume_string(self) -> str:
-        c = self.peek_char()
-        assert(c == '"')
-        # TODO: Does the string include the ""s? (for now it doesn't)
-        string = ''
+        self.consume_char()
+        c = self.consume_char()
         while c != '"':
+            if self.eof():
+                self.fatal(f"Unterminated string!")
             string += c
-            c = self.chop_char()
-        # Remove " at the end
-        assert self.peek_char() == '"'
-        self.chop_char()
+            c = self.consume_char()
 
-        # dlog(f"String: '{string}'");
+        assert self.consume_char() == '"', "This shouldn't happen according to the while loop above"
+
         return string
 
-    def exhausted(self) -> bool:
-        return self.cur > len(self.src)-1
-
-    def trim_left(self):
-        while self.peek_char().isspace():
-            self.chop_char()
-
-    def next_token(self) -> bool | Token:
-        while self.current_char() == '/' and self.next_char() == '/':
-            comment = self.consume_comment()
+    def next_token(self) -> Token | None:
         c = self.current_char()
 
-        if (self.exhausted()):
-            return None
+        t: Token | None = None
+        if c == '"':
+            t = Token(TokenType.STRING, self.consume_string(), Loc(self.filename, self.line, self.row()))
+            pass
 
-        while c.isspace():
-            if c == '\n':
-                self.next_line()
-            else:
-                # dlog(f"Skipped '{c}' at line {self.line}:{self.cur - self.bol}")
-                self.advance_char()
-            c = self.current_char()
-
-        if c.isalpha() or c == '_':
-            return Token(Token_Type.IDENTIFIER, self.consume_identifier())
-        elif c.isdigit(): # TODO: Only handles base-10 numbers
-            return Token(Token_Type.NUMBER, self.consume_number())
-        elif c in symbols:
-            symbol = self.consume_symbol()
-            token = Token(Token_Type.COUNT, symbol)
-            if symbol == "(":
-                token.typ = Token_Type.OPEN_PAREN
-            elif symbol == ")":
-                token.typ = Token_Type.CLOSE_PAREN
-            elif symbol == ",":
-                token.typ = Token_Type.COMMA
-            elif symbol == "[":
-                token.typ = Token_Type.OPEN_SQUARE_BRACE
-            elif symbol == "]":
-                token.typ = Token_Type.CLOSE_SQUARE_BRACE
-            elif symbol == ":":
-                token.typ = Token_Type.COLON
-            elif symbol == "{":
-                token.typ = Token_Type.OPEN_BRACE
-            elif symbol == "}":
-                token.typ = Token_Type.CLOSE_BRACE
-            elif symbol == ";":
-                token.typ = Token_Type.SEMICOLON
-            elif symbol == "#":
-                token.typ = Token_Type.HASH
-            else:
-                raise Exception(f"Unexpected symbol '{symbol}'")
-
-            return token
-        elif c == '"':
-            return Token(Token_Type.STRING, self.consume_string())
-        else:
-            # error(f"Unexpected char '{c}'. At line {self.line}:{self.cur - self.bol}")
-            raise Exception(f"Unexpected char '{c}'. At line {self.line}:{self.cur - self.bol}")
-
-        return None
-
-    def lex(self) -> [Token]:
-        tokens = []
-        token = self.next_token()
-        tokens.append(token)
-        while token:
-            token = self.next_token()
-            tokens.append(token)
-        dlog("Done lexing...")
-        return tokens
-
+        return t
 def main():
-    program  = sys.argv.pop(0)
-    if (len(sys.argv) <= 0):
-        raise Exception("Please provide the filename!")
-    filename = sys.argv.pop(0)
-    # 1. Source
+    program: str = sys.argv.pop(0)
+
+    if len(sys.argv) <= 0:
+        error(f"Please provide a filename!")
+        usage(program)
+        exit(1)
+
+    filename: str = sys.argv.pop(0)
+
     parser = Parser(filename)
 
-    # 2. Lexical Analysis
-    tokens = parser.lex()
-    pprint.pp(tokens)
+    # token = parser.next_token()
 
-    output_filename = "output"
-    output = open(output_filename, 'w')
 
-    # 3. TODO: Syntactical Analysis
-    for i in range(0, len(tokens)-1):
-        token = tokens[i]
-        next  = tokens[i+1]
-
-        if token.typ == Token_Type.IDENTIFIER:
-            # assert len(KEYWORDS) == 1, "Every keyword is not handled!"
-            if token.literal_string in KEYWORDS:
-                func = KEYWORDS[token.literal_string]
-                func(i+1, tokens)
-                dlog(f"Found keyword: '{token.literal_string}'")
-            else:
-                dlog(f"Found ident '{token.literal_string}'")
-        elif token.typ == Token_Type.OPEN_PAREN:
-            dlog(f"Found Open paren")
-        elif token.typ == Token_Type.CLOSE_PAREN:
-            dlog(f"Found Close paren")
-        elif token.typ == Token_Type.COLON:
-            dlog(f"Found Colon")
-        elif token.typ == Token_Type.COMMA:
-            dlog(f"Found Comma")
-        elif token.typ == Token_Type.OPEN_SQUARE_BRACE:
-            dlog(f"found open square brace")
-        elif token.typ == Token_Type.CLOSE_SQUARE_BRACE:
-            dlog(f"Found Close square brace")
-        elif token.typ == Token_Type.OPEN_BRACE:
-            dlog(f"found open brace")
-        elif token.typ == Token_Type.CLOSE_BRACE:
-            dlog(f"Found Close brace")
-        elif token.typ == Token_Type.STRING:
-            dlog(f"Found String")
-        elif token.typ == Token_Type.SEMICOLON:
-            dlog(f"Found Semicolon")
-        elif token.typ == Token_Type.NUMBER:
-            dlog(f"Found Number")
-
-        else:
-            assert False, f"Token_type '{token.type_as_str()}' is unimplemented!"
-        # pprint.pp("------------------------------")
-        # pprint.pp(f"  Token: {token}")
-        # pprint.pp(f"  Next:  {next}")
-
-    output.close()
 if __name__ == '__main__':
     main()
