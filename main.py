@@ -37,6 +37,7 @@ class Loc:
 class TokenType(IntEnum):
     IDENT = auto()
     STRING = auto()
+
     LEFT_PAREN = auto()
     RIGHT_PAREN = auto()
     MINUS = auto()
@@ -60,6 +61,8 @@ class TokenType(IntEnum):
     SEMICOLON = auto()
     LEFT_SQUARE_BRACE = auto()
     RIGHT_SQUARE_BRACE = auto()
+
+    NUMBER = auto()
     COUNT = auto()
 
 token_type_as_str_map: { TokenType : str } = {
@@ -88,6 +91,7 @@ token_type_as_str_map: { TokenType : str } = {
     TokenType.SEMICOLON            : "Semicolon",
     TokenType.LEFT_SQUARE_BRACE    : "Left Square Brace",
     TokenType.RIGHT_SQUARE_BRACE   : "Right Square Brace",
+    TokenType.NUMBER               : "Number"
 }
 # NOTE: TokenType.COUNT - 1 because auto() starts from 1
 assert len(token_type_as_str_map) == TokenType.COUNT-1
@@ -166,6 +170,20 @@ class Parser:
             ident += self.consume_char()
 
         return (ident, ident_loc)
+
+    def consume_number(self) -> (str, Loc):
+        assert self.current_char().isdigit(), "Called consume_number() at the wrong character!"
+        number: str = self.consume_char()
+
+        # TODO: Handle floating point numbers
+        # TODO: Handle numbers in other formats (Eg, binary, hexadecimal, etc)
+        number_loc: Loc = Loc(self.filename, self.line, self.row())
+
+        while self.current_char().isdigit() and not self.eof():
+            number += self.consume_char()
+
+        return (number, number_loc)
+
 
     def left_trim(self):
         while not self.eof() and self.current_char().isspace():
@@ -261,6 +279,9 @@ class Parser:
         elif c == ']':
             loc = Loc(self.filename, self.line, self.row())
             return Token(TokenType.RIGHT_SQUARE_BRACE, self.consume_char(), loc)
+        elif c.isdigit():
+            num, loc = self.consume_number()
+            return Token(TokenType.NUMBER, num, loc)
         else:
             fatal(f"Unrecognized character '{c}'")
 
