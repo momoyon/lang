@@ -100,14 +100,24 @@ class Parser:
 
         return (string, string_loc)
 
+    def left_trim(self):
+        while self.current_char().isspace():
+            self.consume_char()
+            # dlog(f"Skipping {self.current_char()}")
+
+        # dlog(f"Char after left trim: '{self.current_char()}'")
+
     def next_token(self) -> Token | None:
+        self.left_trim()
+
         c = self.current_char()
 
         t: Token | None = None
         if c == '"':
             value, loc = self.consume_string()
             t = Token(TokenType.STRING, value, loc)
-            pass
+        else:
+            fatal(f"Unrecognized character '{c}'")
 
         return t
 def main():
