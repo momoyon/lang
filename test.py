@@ -20,20 +20,27 @@ def cmd(args: [str], echo=False) -> subprocess.CompletedProcess:
         print("\"")
     return subprocess.run(args, capture_output=True, text=True)
 
+def info(msg: str):
+    print(f"INFO: {msg}")
 
 def test_source_file(filename: str):
     if not os.path.exists(filename):
         error(f"File {filename} doesn't exist!")
         exit(1)
 
-    # TODO: option to record/update test file
     testfilename: str = filename + TEST_FILE_SUFFIX
     if not os.path.exists(testfilename):
         error("Test file {testfilename} doesn't exist!")
+        ans = input("Create test file with current output? [y/N]")
+        if ans.lower() == "y" or ans.lower() == "yes":
+            output = cmd(["python", "./main.py", filename]).stdout
+            info(f"Creating test file {testfilename}")
+            with open(testfilename, 'w') as f:
+                f.write(output)
+
         exit(1)
 
     p = cmd(["python", "./main.py", filename])
-
     output = p.stdout
 
     f = open(testfilename, 'r')
@@ -44,6 +51,11 @@ def test_source_file(filename: str):
         print("Failed!")
         print(f"Expected: `{expected_output}`")
         print(f"Got:      `{output}`")
+        ans = input("\nUpdate output? [y/N]")
+        if ans.lower() == "y" or ans.lower() == "yes":
+            info(f"Updating test file {testfilename}")
+            with open(testfilename, 'w') as f:
+                f.write(output)
     else:
         print("Success!")
 
