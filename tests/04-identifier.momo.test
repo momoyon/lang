@@ -1,1 +1,2 @@
-Token (1, 'foo', ./tests/04-identifier.momo:2:3)
+"Token (Ident, 'foo', ./tests/04-identifier.momo:1:3)"
+'None'

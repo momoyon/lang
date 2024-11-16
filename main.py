@@ -39,6 +39,12 @@ class TokenType(IntEnum):
     STRING = auto()
     COUNT = auto()
 
+token_type_as_str_map: { TokenType : str } = {
+    TokenType.IDENT : "Ident",
+    TokenType.STRING : "String",
+    TokenType.COUNT : "Count",
+}
+
 class Token:
     def __init__(self, typ: TokenType, value: str, loc: Loc):
         self.typ = typ
@@ -46,8 +52,7 @@ class Token:
         self.loc = loc
 
     def __str__(self):
-        return f"Token ({self.typ}, '{self.value}', {self.loc})"
-
+        return f"Token ({token_type_as_str_map[self.typ]}, '{self.value}', {self.loc})"
 
 class Parser:
     def __init__(self, filename: str):
@@ -108,14 +113,14 @@ class Parser:
 
         c = self.consume_char()
 
-        while c.isalpha() or c == '_' or c.isdigit() or self.eof():
+        while (c.isalpha() or c == '_' or c.isdigit()) and not self.eof():
             ident += c
             c = self.consume_char()
 
         return (ident, ident_loc)
 
     def left_trim(self):
-        while self.current_char().isspace():
+        while not self.eof() and self.current_char().isspace():
             if self.current_char() == '\n':
                 self.line += 1
                 self.bol = self.cur + 1
@@ -127,6 +132,9 @@ class Parser:
 
     def next_token(self) -> Token | None:
         self.left_trim()
+
+        if self.eof():
+            return None
 
         c = self.current_char()
 
@@ -154,10 +162,15 @@ def main():
 
     parser = Parser(filename)
 
+    tokens: [Token] = []
     token = parser.next_token()
+    tokens.append(token)
+    while token != None:
+        token = parser.next_token()
+        tokens.append(token)
 
-    print(token)
-
+    for t in tokens:
+        pprint.pp(str(t))
 
 if __name__ == '__main__':
     main()

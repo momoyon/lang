@@ -1,2 +1,4 @@
 
-   foo : string = "Value of foo";
+fun main() -> int {
+    return 0;
+}
