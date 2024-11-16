@@ -129,7 +129,6 @@ class Parser:
 
         # dlog(f"Char after left trim: '{self.current_char()}'")
 
-
     def next_token(self) -> Token | None:
         self.left_trim()
 
