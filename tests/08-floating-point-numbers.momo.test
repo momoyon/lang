@@ -1,0 +1,4 @@
+"Token (Number, '69.0', ./tests/08-floating-point-numbers.momo:1:1)"
+"Token (Number, '100.15134324', ./tests/08-floating-point-numbers.momo:2:1)"
+"Token (Number, '420.11', ./tests/08-floating-point-numbers.momo:3:1)"
+'None'

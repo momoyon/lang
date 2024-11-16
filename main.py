@@ -177,12 +177,19 @@ class Parser:
         assert self.current_char().isdigit(), "Called consume_number() at the wrong character!"
         number: str = self.consume_char()
 
-        # TODO: Handle floating point numbers
         # TODO: Handle numbers in other formats (Eg, binary, hexadecimal, etc)
         number_loc: Loc = Loc(self.filename, self.line, self.row())
+        dot_handled: bool = False
 
-        while self.current_char().isdigit() and not self.eof():
-            number += self.consume_char()
+        while (self.current_char().isdigit() or self.current_char() == '.') and not self.eof():
+            if self.current_char() == '.':
+                if dot_handled:
+                    self.fatal("Number can only have one dots!")
+                number += self.consume_char()
+                dot_handled = True
+            else:
+                assert self.current_char().isdigit(), "This should never happen"
+                number += self.consume_char()
 
         return (number, number_loc)
 
