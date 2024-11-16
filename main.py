@@ -37,13 +37,50 @@ class Loc:
 class TokenType(IntEnum):
     IDENT = auto()
     STRING = auto()
+    LEFT_PAREN = auto()
+    RIGHT_PAREN = auto()
+    MINUS = auto()
+    RETURNER = auto()
+    LEFT_BRACE = auto()
+    RIGHT_BRACE = auto()
+    PLUS = auto()
+    DIVIDE = auto()
+    MULTIPLY = auto()
+    MODULUS = auto()
+    EQUAL = auto()
+    NOT = auto()
+    NOT_EQUAL = auto()
+    EQUAL_EQUAL = auto()
+    GT = auto()
+    LT = auto()
+    GTE = auto()
+    LTE = auto()
     COUNT = auto()
 
 token_type_as_str_map: { TokenType : str } = {
-    TokenType.IDENT : "Ident",
-    TokenType.STRING : "String",
-    TokenType.COUNT : "Count",
+    TokenType.IDENT         : "Ident",
+    TokenType.STRING        : "String",
+    TokenType.LEFT_PAREN    : "Left paren",
+    TokenType.RIGHT_PAREN   : "Right paren",
+    TokenType.MINUS         : "Minus",
+    TokenType.LEFT_BRACE    : "Left brace",
+    TokenType.RIGHT_BRACE   : "Right brace",
+    TokenType.RETURNER      : "Returner",
+    TokenType.PLUS          : "Plus",
+    TokenType.DIVIDE        : "Divide",
+    TokenType.MULTIPLY      : "Multiply",
+    TokenType.MODULUS       : "Modulus",
+    TokenType.EQUAL         : "Equal",
+    TokenType.NOT           : "Not",
+    TokenType.NOT_EQUAL     : "Not Equal",
+    TokenType.EQUAL_EQUAL   : "Equal Equal",
+    TokenType.GT            : "Greater Than",
+    TokenType.LT            : "Less Than",
+    TokenType.GTE           : "Greater Than or Equal",
+    TokenType.LTE           : "Less Than or Equal",
 }
+# NOTE: TokenType.COUNT - 1 because auto() starts from 1
+assert len(token_type_as_str_map) == TokenType.COUNT-1
 
 class Token:
     def __init__(self, typ: TokenType, value: str, loc: Loc):
@@ -79,6 +116,10 @@ class Parser:
     def current_char(self) -> str:
         assert self.cur < len(self.src), f"cur: {self.cur}, src_len: {len(self.src)}"
         return self.src[self.cur]
+
+    def peek_next_char(self) -> str | int:
+        if self.cur + 1 >= len(self.src): return -1
+        return self.src[self.cur + 1]
 
     def consume_char(self) -> str:
         c = self.current_char()
@@ -134,17 +175,71 @@ class Parser:
 
         c = self.current_char()
 
-        t: Token | None = None
         if c == '"':
             value, loc = self.consume_string()
-            t = Token(TokenType.STRING, value, loc)
+            return Token(TokenType.STRING, value, loc)
         elif c.isalpha() or c == '_':
             ident, loc = self.consume_identifier()
-            t = Token(TokenType.IDENT, ident, loc)
+            return Token(TokenType.IDENT, ident, loc)
+        elif c == '(':
+            loc = Loc(self.filename, self.line, self.row())
+            return Token(TokenType.LEFT_PAREN, self.consume_char(), loc)
+        elif c == ')':
+            loc = Loc(self.filename, self.line, self.row())
+            return Token(TokenType.RIGHT_PAREN, self.consume_char(), loc)
+        elif c == '-':
+            loc = Loc(self.filename, self.line, self.row())
+            # Check if its a returner '->'
+            if self.peek_next_char() == '>':
+                return Token(TokenType.RETURNER, self.consume_char() + self.consume_char(), loc)
+
+            return Token(TokenType.MINUS, self.consume_char(), loc)
+        elif c == '{':
+            loc = Loc(self.filename, self.line, self.row())
+            return Token(TokenType.LEFT_BRACE, self.consume_char(), loc)
+        elif c == '}':
+            loc = Loc(self.filename, self.line, self.row())
+            return Token(TokenType.RIGHT_BRACE, self.consume_char(), loc)
+        elif c == '+':
+            loc = Loc(self.filename, self.line, self.row())
+            return Token(TokenType.PLUS, self.consume_char(), loc)
+        elif c == '/':
+            loc = Loc(self.filename, self.line, self.row())
+            return Token(TokenType.DIVIDE, self.consume_char(), loc)
+        elif c == '*':
+            loc = Loc(self.filename, self.line, self.row())
+            return Token(TokenType.MULTIPLY, self.consume_char(), loc)
+        elif c == '%':
+            loc = Loc(self.filename, self.line, self.row())
+            return Token(TokenType.MODULUS, self.consume_char(), loc)
+        elif c == '=':
+            loc = Loc(self.filename, self.line, self.row())
+            # Check if '=='
+            if self.peek_next_char() == '=':
+                return Token(TokenType.EQUAL_EQUAL, self.consume_char() + self.consume_char(), loc)
+            return Token(TokenType.EQUAL, self.consume_char(), loc)
+        elif c == '!':
+            loc = Loc(self.filename, self.line, self.row())
+            # Check if '!='
+            if self.peek_next_char() == '=':
+                return Token(TokenType.NOT_EQUAL, self.consume_char() + self.consume_char(), loc)
+            return Token(TokenType.NOT, self.consume_char(), loc)
+        elif c == '>':
+            loc = Loc(self.filename, self.line, self.row())
+            # Check if '>='
+            if self.peek_next_char() == '=':
+                return Token(TokenType.GTE, self.consume_char() + self.consume_char(), loc)
+            return Token(TokenType.GT, self.consume_char(), loc)
+        elif c == '<':
+            loc = Loc(self.filename, self.line, self.row())
+            # Check if '<='
+            if self.peek_next_char() == '=':
+                return Token(TokenType.LTE, self.consume_char() + self.consume_char(), loc)
+            return Token(TokenType.LT, self.consume_char(), loc)
         else:
             fatal(f"Unrecognized character '{c}'")
 
-        return t
+        return None
 
 def main():
     program: str = sys.argv.pop(0)
