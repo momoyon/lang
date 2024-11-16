@@ -1,4 +1,4 @@
-"Token (Ident, 'foo', ./tests/05-multiple-identifiers.momo:1:2)"
-"Token (Ident, 'bar', ./tests/05-multiple-identifiers.momo:1:6)"
-"Token (Ident, 'baz', ./tests/05-multiple-identifiers.momo:1:10)"
+"Token (Ident, 'foo', ./tests/05-multiple-identifiers.momo:1:3)"
+"Token (Ident, 'bar', ./tests/05-multiple-identifiers.momo:2:1)"
+"Token (Ident, 'baz', ./tests/05-multiple-identifiers.momo:2:5)"
 'None'

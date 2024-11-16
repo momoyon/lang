@@ -108,14 +108,11 @@ class Parser:
     def consume_identifier(self) -> (str, Loc):
         # Identifiers can start with [a-z][A-Z]_ and contain [0-9] after the first char
         assert self.current_char().isalpha() or self.current_char() == '_', "Called consume_identifier() at the wrong character!"
-        ident_loc: Loc = Loc(self.filename, self.line, self.row())
         ident: str = self.consume_char()
+        ident_loc: Loc = Loc(self.filename, self.line, self.row())
 
-        c = self.consume_char()
-
-        while (c.isalpha() or c == '_' or c.isdigit()) and not self.eof():
-            ident += c
-            c = self.consume_char()
+        while (self.current_char().isalpha() or self.current_char() == '_' or self.current_char().isdigit()) and not self.eof():
+            ident += self.consume_char()
 
         return (ident, ident_loc)
 

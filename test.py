@@ -58,6 +58,8 @@ def test_source_file(filename: str):
             info(f"Updating test file {testfilename}")
             with open(testfilename, 'w') as f:
                 f.write(output)
+        else:
+            exit(1)
     else:
         print("Success!")
 
