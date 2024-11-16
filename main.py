@@ -100,12 +100,30 @@ class Parser:
 
         return (string, string_loc)
 
+    def consume_identifier(self) -> (str, Loc):
+        # Identifiers can start with [a-z][A-Z]_ and contain [0-9] after the first char
+        assert self.current_char().isalpha() or self.current_char() == '_', "Called consume_identifier() at the wrong character!"
+        ident_loc: Loc = Loc(self.filename, self.line, self.row())
+        ident: str = self.consume_char()
+
+        c = self.consume_char()
+
+        while c.isalpha() or c == '_' or c.isdigit() or self.eof():
+            ident += c
+            c = self.consume_char()
+
+        return (ident, ident_loc)
+
     def left_trim(self):
         while self.current_char().isspace():
+            if self.current_char() == '\n':
+                self.line += 1
+                self.bol = self.cur + 1
             self.consume_char()
             # dlog(f"Skipping {self.current_char()}")
 
         # dlog(f"Char after left trim: '{self.current_char()}'")
+
 
     def next_token(self) -> Token | None:
         self.left_trim()
@@ -116,10 +134,14 @@ class Parser:
         if c == '"':
             value, loc = self.consume_string()
             t = Token(TokenType.STRING, value, loc)
+        elif c.isalpha() or c == '_':
+            ident, loc = self.consume_identifier()
+            t = Token(TokenType.IDENT, ident, loc)
         else:
             fatal(f"Unrecognized character '{c}'")
 
         return t
+
 def main():
     program: str = sys.argv.pop(0)
 
