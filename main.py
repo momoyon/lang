@@ -58,32 +58,36 @@ class TokenType(IntEnum):
     COMMA = auto()
     COLON = auto()
     SEMICOLON = auto()
+    LEFT_SQUARE_BRACE = auto()
+    RIGHT_SQUARE_BRACE = auto()
     COUNT = auto()
 
 token_type_as_str_map: { TokenType : str } = {
-    TokenType.IDENT         : "Ident",
-    TokenType.STRING        : "String",
-    TokenType.LEFT_PAREN    : "Left paren",
-    TokenType.RIGHT_PAREN   : "Right paren",
-    TokenType.MINUS         : "Minus",
-    TokenType.LEFT_BRACE    : "Left brace",
-    TokenType.RIGHT_BRACE   : "Right brace",
-    TokenType.RETURNER      : "Returner",
-    TokenType.PLUS          : "Plus",
-    TokenType.DIVIDE        : "Divide",
-    TokenType.MULTIPLY      : "Multiply",
-    TokenType.MODULUS       : "Modulus",
-    TokenType.EQUAL         : "Equal",
-    TokenType.NOT           : "Not",
-    TokenType.NOT_EQUAL     : "Not Equal",
-    TokenType.EQUAL_EQUAL   : "Equal Equal",
-    TokenType.GT            : "Greater Than",
-    TokenType.LT            : "Less Than",
-    TokenType.GTE           : "Greater Than or Equal",
-    TokenType.LTE           : "Less Than or Equal",
-    TokenType.COMMA         : "Comma",
-    TokenType.COLON         : "Colon",
-    TokenType.SEMICOLON     : "Semicolon",
+    TokenType.IDENT                : "Ident",
+    TokenType.STRING               : "String",
+    TokenType.LEFT_PAREN           : "Left Paren",
+    TokenType.RIGHT_PAREN          : "Right Paren",
+    TokenType.MINUS                : "Minus",
+    TokenType.LEFT_BRACE           : "Left Brace",
+    TokenType.RIGHT_BRACE          : "Right Brace",
+    TokenType.RETURNER             : "Returner",
+    TokenType.PLUS                 : "Plus",
+    TokenType.DIVIDE               : "Divide",
+    TokenType.MULTIPLY             : "Multiply",
+    TokenType.MODULUS              : "Modulus",
+    TokenType.EQUAL                : "Equal",
+    TokenType.NOT                  : "Not",
+    TokenType.NOT_EQUAL            : "Not Equal",
+    TokenType.EQUAL_EQUAL          : "Equal Equal",
+    TokenType.GT                   : "Greater Than",
+    TokenType.LT                   : "Less Than",
+    TokenType.GTE                  : "Greater Than or Equal",
+    TokenType.LTE                  : "Less Than or Equal",
+    TokenType.COMMA                : "Comma",
+    TokenType.COLON                : "Colon",
+    TokenType.SEMICOLON            : "Semicolon",
+    TokenType.LEFT_SQUARE_BRACE    : "Left Square Brace",
+    TokenType.RIGHT_SQUARE_BRACE   : "Right Square Brace",
 }
 # NOTE: TokenType.COUNT - 1 because auto() starts from 1
 assert len(token_type_as_str_map) == TokenType.COUNT-1
@@ -251,6 +255,12 @@ class Parser:
         elif c == ';':
             loc = Loc(self.filename, self.line, self.row())
             return Token(TokenType.SEMICOLON, self.consume_char(), loc)
+        elif c == '[':
+            loc = Loc(self.filename, self.line, self.row())
+            return Token(TokenType.LEFT_SQUARE_BRACE, self.consume_char(), loc)
+        elif c == ']':
+            loc = Loc(self.filename, self.line, self.row())
+            return Token(TokenType.RIGHT_SQUARE_BRACE, self.consume_char(), loc)
         else:
             fatal(f"Unrecognized character '{c}'")
 
