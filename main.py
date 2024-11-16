@@ -59,6 +59,7 @@ class TokenType(IntEnum):
     COMMA = auto()
     COLON = auto()
     SEMICOLON = auto()
+    DOT = auto()
     LEFT_SQUARE_BRACE = auto()
     RIGHT_SQUARE_BRACE = auto()
 
@@ -89,6 +90,7 @@ token_type_as_str_map: { TokenType : str } = {
     TokenType.COMMA                : "Comma",
     TokenType.COLON                : "Colon",
     TokenType.SEMICOLON            : "Semicolon",
+    TokenType.DOT                  : "Dot",
     TokenType.LEFT_SQUARE_BRACE    : "Left Square Brace",
     TokenType.RIGHT_SQUARE_BRACE   : "Right Square Brace",
     TokenType.NUMBER               : "Number"
@@ -279,6 +281,9 @@ class Parser:
         elif c == ']':
             loc = Loc(self.filename, self.line, self.row())
             return Token(TokenType.RIGHT_SQUARE_BRACE, self.consume_char(), loc)
+        elif c == '.':
+            loc = Loc(self.filename, self.line, self.row())
+            return Token(TokenType.DOT, self.consume_char(), loc)
         elif c.isdigit():
             num, loc = self.consume_number()
             return Token(TokenType.NUMBER, num, loc)
