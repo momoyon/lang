@@ -2,7 +2,8 @@ import os
 import sys
 import subprocess
 
-TEST_DIR = "./tests/"
+MOMO_FILE_SUFFIX = ".momo"
+TESTS_DIR = "./tests/"
 TEST_FILE_SUFFIX = ".test"
 
 def error(msg: str):
@@ -30,7 +31,7 @@ def test_source_file(filename: str):
 
     testfilename: str = filename + TEST_FILE_SUFFIX
     if not os.path.exists(testfilename):
-        error("Test file {testfilename} doesn't exist!")
+        error(f"Test file {testfilename} doesn't exist!")
         ans = input("Create test file with current output? [y/N]")
         if ans.lower() == "y" or ans.lower() == "yes":
             output = cmd(["python", "./main.py", filename]).stdout
@@ -47,10 +48,11 @@ def test_source_file(filename: str):
     expected_output = f.read()
     f.close()
 
+    print(f"INFO: Testing file '{filename}'...", end='')
     if output != expected_output:
         print("Failed!")
-        print(f"Expected: `{expected_output}`")
-        print(f"Got:      `{output}`")
+        print(f"Expected: `{repr(expected_output)}`")
+        print(f"Got:      `{repr(output)}`")
         ans = input("\nUpdate output? [y/N]")
         if ans.lower() == "y" or ans.lower() == "yes":
             info(f"Updating test file {testfilename}")
@@ -60,8 +62,11 @@ def test_source_file(filename: str):
         print("Success!")
 
 def main():
-    test_source_file("./tests/01-unterminated-string.momo")
 
+    for (dirpath, dirs, files) in os.walk(TESTS_DIR):
+        for f in files:
+            if f.endswith(MOMO_FILE_SUFFIX):
+                test_source_file(TESTS_DIR + f)
 
 if __name__ == '__main__':
     main()
