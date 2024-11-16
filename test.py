@@ -65,7 +65,20 @@ def test_source_file(filename: str):
 
 def main():
 
+    # arr = [
+    #     './tests/01-unterminated-string.momo',
+    #     './tests/06-single-char-symbols.momo',
+    #     './tests/04-identifier.momo',
+    #     './tests/05-multiple-identifiers.momo',
+    #     './tests/02-string.momo',
+    #     './tests/03-whitespaced-string.momo',
+    # ]
+    # arr = sorted(arr)
+
+    # print(arr)
+
     for (dirpath, dirs, files) in os.walk(TESTS_DIR):
+        files = sorted(files)
         for f in files:
             if f.endswith(MOMO_FILE_SUFFIX):
                 test_source_file(TESTS_DIR + f)
