@@ -16,4 +16,7 @@
 "Token (Less Than or Equal, '<=', ./tests/06-single-char-symbols.momo:4:7)"
 "Token (Not Equal, '!=', ./tests/06-single-char-symbols.momo:4:10)"
 "Token (Equal Equal, '==', ./tests/06-single-char-symbols.momo:4:13)"
+"Token (Comma, ',', ./tests/06-single-char-symbols.momo:5:0)"
+"Token (Colon, ':', ./tests/06-single-char-symbols.momo:5:2)"
+"Token (Semicolon, ';', ./tests/06-single-char-symbols.momo:5:4)"
 'None'

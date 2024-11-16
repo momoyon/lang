@@ -55,6 +55,9 @@ class TokenType(IntEnum):
     LT = auto()
     GTE = auto()
     LTE = auto()
+    COMMA = auto()
+    COLON = auto()
+    SEMICOLON = auto()
     COUNT = auto()
 
 token_type_as_str_map: { TokenType : str } = {
@@ -78,6 +81,9 @@ token_type_as_str_map: { TokenType : str } = {
     TokenType.LT            : "Less Than",
     TokenType.GTE           : "Greater Than or Equal",
     TokenType.LTE           : "Less Than or Equal",
+    TokenType.COMMA         : "Comma",
+    TokenType.COLON         : "Colon",
+    TokenType.SEMICOLON     : "Semicolon",
 }
 # NOTE: TokenType.COUNT - 1 because auto() starts from 1
 assert len(token_type_as_str_map) == TokenType.COUNT-1
@@ -236,6 +242,15 @@ class Parser:
             if self.peek_next_char() == '=':
                 return Token(TokenType.LTE, self.consume_char() + self.consume_char(), loc)
             return Token(TokenType.LT, self.consume_char(), loc)
+        elif c == ',':
+            loc = Loc(self.filename, self.line, self.row())
+            return Token(TokenType.COMMA, self.consume_char(), loc)
+        elif c == ':':
+            loc = Loc(self.filename, self.line, self.row())
+            return Token(TokenType.COLON, self.consume_char(), loc)
+        elif c == ';':
+            loc = Loc(self.filename, self.line, self.row())
+            return Token(TokenType.SEMICOLON, self.consume_char(), loc)
         else:
             fatal(f"Unrecognized character '{c}'")
 
