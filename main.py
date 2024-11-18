@@ -304,7 +304,7 @@ class Parser:
 
         return None
 
-    def parse(self) -> [Token]:
+    def lex(self) -> [Token]:
         tokens: [Token] = []
         token = self.next_token()
         while token != None:
@@ -323,8 +323,8 @@ def main():
     filename: str = sys.argv.pop(0)
 
     parser = Parser(filename)
-
-    tokens = parser.parse()
+    # Lexical Analysis
+    tokens = parser.lex()
 
     for t in tokens:
         pprint.pp(str(t))
