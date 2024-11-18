@@ -22,4 +22,3 @@
 "Token (Colon, ':', ./tests/06-single-char-symbols.momo:5:2)"
 "Token (Semicolon, ';', ./tests/06-single-char-symbols.momo:5:4)"
 "Token (Dot, '.', ./tests/06-single-char-symbols.momo:5:6)"
-'None'

@@ -60,6 +60,7 @@ class TokenType(IntEnum):
     COLON = auto()
     SEMICOLON = auto()
     DOT = auto()
+    HASH = auto()
     LEFT_SQUARE_BRACE = auto()
     RIGHT_SQUARE_BRACE = auto()
 
@@ -91,6 +92,7 @@ token_type_as_str_map: { TokenType : str } = {
     TokenType.COLON                : "Colon",
     TokenType.SEMICOLON            : "Semicolon",
     TokenType.DOT                  : "Dot",
+    TokenType.HASH                 : "Hash",
     TokenType.LEFT_SQUARE_BRACE    : "Left Square Brace",
     TokenType.RIGHT_SQUARE_BRACE   : "Right Square Brace",
     TokenType.NUMBER               : "Number"
@@ -291,6 +293,9 @@ class Parser:
         elif c == '.':
             loc = Loc(self.filename, self.line, self.row())
             return Token(TokenType.DOT, self.consume_char(), loc)
+        elif c == '#':
+            loc = Loc(self.filename, self.line, self.row())
+            return Token(TokenType.HASH, self.consume_char(), loc)
         elif c.isdigit():
             num, loc = self.consume_number()
             return Token(TokenType.NUMBER, num, loc)
@@ -313,10 +318,9 @@ def main():
 
     tokens: [Token] = []
     token = parser.next_token()
-    tokens.append(token)
     while token != None:
-        token = parser.next_token()
         tokens.append(token)
+        token = parser.next_token()
 
     for t in tokens:
         pprint.pp(str(t))
