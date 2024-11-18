@@ -109,7 +109,7 @@ class Token:
     def __str__(self):
         return f"Token ({token_type_as_str_map[self.typ]}, '{self.value}', {self.loc})"
 
-class Parser:
+class Lexer:
     def __init__(self, filename: str):
         try:
             with open(filename, mode='r') as f:
@@ -312,6 +312,10 @@ class Parser:
             token = self.next_token()
         return tokens
 
+class Parser:
+    def __init__(self, tokens):
+        self.tokens = tokens
+
 def main():
     program: str = sys.argv.pop(0)
 
@@ -322,9 +326,12 @@ def main():
 
     filename: str = sys.argv.pop(0)
 
-    parser = Parser(filename)
+    lexer = Lexer(filename)
     # Lexical Analysis
-    tokens = parser.lex()
+    tokens = lexer.lex()
+
+    # TODO: Parse
+    parser = Parser(tokens)
 
     for t in tokens:
         pprint.pp(str(t))
