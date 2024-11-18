@@ -304,6 +304,14 @@ class Parser:
 
         return None
 
+    def parse(self) -> [Token]:
+        tokens: [Token] = []
+        token = self.next_token()
+        while token != None:
+            tokens.append(token)
+            token = self.next_token()
+        return tokens
+
 def main():
     program: str = sys.argv.pop(0)
 
@@ -316,11 +324,7 @@ def main():
 
     parser = Parser(filename)
 
-    tokens: [Token] = []
-    token = parser.next_token()
-    while token != None:
-        tokens.append(token)
-        token = parser.next_token()
+    tokens = parser.parse()
 
     for t in tokens:
         pprint.pp(str(t))
