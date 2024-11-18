@@ -23,6 +23,21 @@ TL;DR:
 - Good opportunity to learn how a programming language works.
 - Because it's fun.
 
+## Syntax (WIP)
+
+How hello world would look like:
+```C
+#include <stdio> // includes remove .h suffix
+
+// argc and argv merged into a static array (new built-in type)
+// 'fun' keyword for declaring a function.
+fun main(args: [string]) -> int { // return type after the function decl.
+    printf("Hello, World\n");
+    return 0;
+}
+
+```
+
 ## References
 
 - [Book im reading(The dragon book)](https://drive.google.com/file/d/0B1MogsyNAsj9elVzQWR5NWVTSVE/view?pli=1&resourcekey=0-zoBDMpzTafr6toxDuQLNUg)
