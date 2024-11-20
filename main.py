@@ -101,13 +101,13 @@ token_type_as_str_map: { TokenType : str } = {
 assert len(token_type_as_str_map) == TokenType.COUNT-1
 
 class Token:
-    def __init__(self, typ: TokenType, value: str, loc: Loc):
+    def __init__(self, typ: TokenType, lexeme: str, loc: Loc):
         self.typ = typ
-        self.value = value
+        self.lexeme = lexeme
         self.loc = loc
 
     def __str__(self):
-        return f"Token ({token_type_as_str_map[self.typ]}, '{self.value}', {self.loc})"
+        return f"Token ({token_type_as_str_map[self.typ]}, '{self.lexeme}', {self.loc})"
 
 class Lexer:
     def __init__(self, filename: str):
