@@ -337,8 +337,8 @@ NOTE: ¢ is a zero length string, meaning nothing will be substituted
 Grammar:
     Statement       => Ident :? Ident? =? Expression* ;
     Expression      => Name Binop Name
-    Name            => Value | Ident
-    Value           => Int | Float
+    Name            => LitValue | Ident
+    LitValue        => Int | Float | String
     BinaryOperator  => ArithmeticOp | ComparisionOp | LogicalOp
     ComparisionOp   => > | >= | < | <= | == | !=
     ArithmeticOp    => + | - | * | / | %
@@ -350,15 +350,15 @@ class AstNode:
     def __init__(self, typ: AstNodeType):
         self.typ = typ
 
-class StatementAstNode(AstNode):
+class AstNodeStatement(AstNode):
     def __init__(self):
         __super__(AstNodeType.STMT)
 
-class ExpressionAstNode(AstNode):
+class AstNodeExpression(AstNode):
     def __init__(self):
         __super__(AstNodeType.EXPR)
 
-class IntAstNode(AstNode):
+class AstNodeInt(AstNode):
     def __init__(self, value: int):
         __super__(AstNodeType.IDENT)
         self.value = value
@@ -367,28 +367,37 @@ class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
 
-    def parse(self, tokens: [Token]) -> AstNode:
-        stmt = self.parseStatement(tokens)
+    def syntax_error(self, msg: str, token: Token):
+        fatal(f"{str(token.loc)}: Syntax Error: {msg}")
 
-    def parseStatement(self, tokens: [Token]) -> StatementAstNode:
+    def parse(self) -> AstNode:
+        stmt = self.parseStatement()
+        return stmt
+
+    def parseStatement(self) -> AstNodeStatement:
+        tokens = self.tokens
         if len(tokens) <= 0: return None
-        t: Token = tokens.pop(0)
-        expr = self.parseExpr(tokens)
+        var_name = tokens.pop(0)
+        var_typ  = None
+        # Check if colon is there
+        if tokens[0].typ == TokenType.COLON:
+            colon = tokens.pop(0)
+            var_typ = None if len(tokens) <= 0 else tokens.pop(0)
+            eof_msg = "Reached End of File"
+            typ_mismatch_msg = f"Got {token_type_as_str_map[var_typ.typ]}"
+            if var_typ == None or var_typ.typ != TokenType.IDENT:
+                self.syntax_error("Expected type of variable after colon, but %s" % eof_msg if var_typ == None else typ_mismatch_msg, colon)
 
-    def parseExpr(self, tokens: [Token]) -> ExpressionAstNode:
-        lhs = self.parseIdent(tokens)
-        op  = self.parseBinaryOp(tokens)
-        rhs = self.parseIdent(tokens)
+        dlog(var_name)
+        if var_typ != None:
+            dlog(var_typ)
 
-    # def parseIdent(self, tokens: [Token]) -> IdentAstNode:
-    #     if len(tokens) <= 0: return None
-    #     t: Token = tokens.pop(0)
+        print("TODO: Implement parseStatement()")
+        exit(1)
+        # expr = self.parseExpr()
 
-    #     if t.typ == TokenType.NUMBER:
-    #         return IdentAstNode(int(t.lexeme))
-    #     elif t.typ == TokenType.IDENT:
-    #         return IdentAstNode(t.lexeme)
-
+    def parseExpr(self) -> AstNodeExpression:
+        pass
 
 def main():
     program: str = sys.argv.pop(0)
@@ -406,6 +415,8 @@ def main():
 
     # TODO: Parse
     parser = Parser(tokens)
+
+    parser.parse()
 
     for t in tokens:
         pprint.pp(str(t))

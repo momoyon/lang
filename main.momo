@@ -1,1 +1,1 @@
-position = initial + rate * 60;
+msg: string = "Hello, World";
