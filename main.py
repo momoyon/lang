@@ -2,6 +2,8 @@ import sys
 from enum import IntEnum, auto
 import pprint
 
+from typing import Tuple, List
+
 DEBUG = True
 
 # Logging
@@ -75,7 +77,7 @@ class TokenType(IntEnum):
 
     COUNT = auto()
 
-token_type_as_str_map: { TokenType : str } = {
+token_type_as_str_map = {
     TokenType.IDENT                : "Ident",
     TokenType.STRING               : "String",
     TokenType.LEFT_PAREN           : "Left Paren",
@@ -158,7 +160,7 @@ class Lexer:
         self.cur += 1
         return c
 
-    def consume_string(self) -> (str, Loc):
+    def consume_string(self) -> Tuple[str, Loc]:
         assert self.current_char() == '"', "Called consume_string() at wrong character!"
         string: str = ''
 
@@ -178,7 +180,7 @@ class Lexer:
 
         return (string, string_loc)
 
-    def consume_identifier(self) -> (str, Loc):
+    def consume_identifier(self) -> Tuple[str, Loc]:
         # Identifiers can start with [a-z][A-Z]_ and contain [0-9] after the first char
         assert self.current_char().isalpha() or self.current_char() == '_', "Called consume_identifier() at the wrong character!"
         ident: str = self.consume_char()
@@ -189,7 +191,7 @@ class Lexer:
 
         return (ident, ident_loc)
 
-    def consume_number(self) -> (str, Loc):
+    def consume_number(self) -> Tuple[str, Loc]:
         assert self.current_char().isdigit(), "Called consume_number() at the wrong character!"
         number: str = self.consume_char()
 
@@ -332,7 +334,7 @@ class Lexer:
 
         return None
 
-    def lex(self) -> [Token]:
+    def lex(self) -> List[Token]:
         tokens: [Token] = []
         token = self.next_token()
         while token != None:
@@ -348,7 +350,7 @@ class AstNodeType(IntEnum):
     FLOAT = auto()
     IDENT = auto()
     STRING = auto()
-    ARITHMETIC_OP = auto()
+    BINARY_OP = auto()
     COUNT = auto()
 
 ast_node_type_as_str_map: {AstNodeType : str} = {
@@ -358,7 +360,7 @@ ast_node_type_as_str_map: {AstNodeType : str} = {
     AstNodeType.FLOAT   : "Float",
     AstNodeType.IDENT   : "Identifier",
     AstNodeType.STRING  : "String",
-    AstNodeType.ARITHMETIC_OP: "Arithmetic Op",
+    AstNodeType.BINARY_OP: "Binary Op",
 }
 
 assert len(ast_node_type_as_str_map) == AstNodeType.COUNT-1, "Every AstNodeType is not handled in ast_node_type_as_str_map"
@@ -366,15 +368,15 @@ assert len(ast_node_type_as_str_map) == AstNodeType.COUNT-1, "Every AstNodeType 
 '''
 NOTE: ¢ is a zero length string, meaning nothing will be substituted
 Grammar:
-    Statement       => Ident :? Ident? =? Expression* ;
-    Expression      => Name (Binop Name)*
-    Name            => LitValue | Ident
-    LitValue        => Int | Float | String
-    BinaryOperator  => ArithmeticOp | ComparisionOp | LogicalOp
-    ComparisionOp   => > | >= | < | <= | == | !=
-    ArithmeticOp    => + | - | * | / | %
-    LogicalOp       => && | '||'
-    BinArithmeticOp => ^ | '|' | &
+    Statement       => Ident :? Ident? =? Expression* ';' ;
+    Expression      => Name (Binop Name)* ;
+    Name            => LitValue | Ident ;
+    LitValue        => Int | Float | String ;
+    BinaryOperator  => ArithmeticOp | ComparisonOp | LogicalOp | BinArithmeticOp ;
+    ComparisonOp    => > | >= | < | <= | == | != ;
+    ArithmeticOp    => + | - | * | / | % ;
+    LogicalOp       => && | '||' ;
+    BinArithmeticOp => ^ | '|' | & ;
 '''
 
 class AstNode:
@@ -426,17 +428,20 @@ class AstNodeString(AstNode):
     def __repr__(self):
         return f"'{self.string}'"
 
-class AstNodeArithmeticOp(AstNode):
+# TODO: Do we need to split binary op ast?
+class AstNodeBinaryOp(AstNode):
     def __init__(self, token: Token):
-        super().__init__(token, AstNodeType.ARITHMETIC_OP)
+        super().__init__(token, AstNodeType.BINARY_OP)
         self.op = self.token.lexeme
 
     def __repr__(self):
         return f"{self.op}"
 
+# TODO: Use Exceptions for error handling, that way i can now the call stack
 class ParseError(IntEnum):
     EOF = auto()
     UNEXPECTED_TOKEN = auto()
+    NAH = auto()
     COUNT = auto()
 
 class Parser:
@@ -476,11 +481,11 @@ class Parser:
 
         expr = self.parseExpression()
 
-        # if expr != ParseError.EOF:
-        #     dlog(expr)
+        # dlog(f"EXPR: {expr}")
 
-        if len(tokens) <= 0:
-            self.syntax_error(f"Expected ; but reached EOF")
+        if isinstance(expr, ParseError):
+            if expr == ParseError.EOF:
+                self.syntax_error(f"Expected ; but reached EOF", equal)
 
         semicolon = tokens.pop(0)
         if semicolon.typ != TokenType.SEMICOLON:
@@ -498,20 +503,39 @@ class Parser:
     def parseExpression(self) -> AstNode | ParseError | None:
         if len(self.tokens) <= 0: return ParseError.EOF
         t = self.tokens[0]
-        lhs = self.parseName()
-        binop = self.parseBinOp()
-        rhs = self.parseName()
 
-        return AstNodeExpression(t, lhs, binop, rhs)
+        lhs = self.parseName()
+        if isinstance(lhs, ParseError):
+            return lhs
+
+        current_node = lhs
+
+        while True:
+            # Parse the binary operator
+            binop = self.parseBinOp()
+            if isinstance(binop, ParseError):
+                return binop  # Return error if parsing failed
+
+            # Parse the next Name (rhs)
+            rhs = self.parseName()
+            if isinstance(rhs, ParseError):
+                return rhs  # Return error if parsing failed
+
+            # Create a new AST node for the binary operation
+            current_node = AstNodeExpression(current_node, binop, rhs)
+
+            # Check if there are more tokens to parse
+            if len(self.tokens) <= 0:
+                break
+
+        return current_node
 
     def parseName(self) -> AstNode | ParseError | None:
         if len(self.tokens) <= 0: return ParseError.EOF
         name = self.parseLiteralValue()
-        if name == None:
+        if isinstance(name, ParseError):
             return self.parseIdentifier()
-        else: return name
-
-        assert False, "UNREACHABLE!"
+        return name
 
     def parseLiteralValue(self) -> AstNode | ParseError | None:
         if len(self.tokens) <= 0: return ParseError.EOF
@@ -526,25 +550,60 @@ class Parser:
         return None
 
     def parseBinOp(self) -> AstNode | ParseError | None:
+        # TODO: Check if Operator predecence is correct
+
         arithmeticOp = self.parseArithmeticOp()
-        if arithmeticOp == None:
-            comparisionOp = self.parseComparisionOp()
-            if comparionOp == None:
-                return self.parseLogicalOp()
-            else:
-                return comparionOp
-        else: return arithmeticOp
+        if arithmeticOp != None and arithmeticOp != ParseError.EOF:
+            return arithmeticOp
+
+        comparisonOp = self.parseComparisonOp()
+        if comparisonOp != None and arithmeticOp != ParseError.EOF:
+            return comparisonOp
+
+        logicalOp = self.parseLogicalOp()
+        if logicalOp != None and arithmeticOp != ParseError.EOF:
+            return logicalOp
+
+        return self.parseBinaryArithmeticOp()
 
         assert False, "UNREACHABLE!"
+
+    def parseComparisonOp(self) -> AstNode | ParseError | None:
+        if len(self.tokens) <= 0: return ParseError.EOF
+        t = self.tokens.pop(0)
+
+        if t.typ in [ TokenType.GT, TokenType.GTE, TokenType.LT, TokenType.LTE, TokenType.EQUAL_EQUAL, TokenType.NOT_EQUAL ]:
+            return AstNodeComparisonOp(t)
+
+        return None
+
+    def parseLogicalOp(self) -> AstNode | ParseError | None:
+        if len(self.tokens) <= 0: return ParseError.EOF
+        t = self.tokens.pop(0)
+
+        if t.typ in [ TokenType.LOGICAL_AND, TokenType.LOGICAL_OR ]:
+            return AstNodeComparisonOp(t)
+
+        return None
 
     def parseArithmeticOp(self) -> AstNode | ParseError | None:
         if len(self.tokens) <= 0: return ParseError.EOF
         t = self.tokens.pop(0)
 
         if t.typ in [ TokenType.PLUS, TokenType.MINUS, TokenType.DIVIDE, TokenType.MODULUS ]:
-            return AstNodeArithmeticOp(t)
+            return AstNodeBinaryOp(t)
 
         return None
+
+    def parseBinaryArithmeticOp(self) -> AstNode | ParseError | None:
+        if len(self.tokens) <= 0: return ParseError.EOF
+        t = self.tokens.pop(0)
+
+        if t.typ in [ TokenType.BINARY_AND, TokenType.BINARY_OR, TokenType.BINARY_NOT ]:
+            return AstNodeBinaryOp(t)
+
+        return None
+
 def main():
     program: str = sys.argv.pop(0)
 
@@ -562,10 +621,10 @@ def main():
     # TODO: Parse
     parser = Parser(tokens)
 
-    # for t in tokens:
-    #     pprint.pp(str(t))
+    for t in tokens:
+        pprint.pp(str(t))
 
-    print(parser.parse())
+    # print(parser.parse())
 
 if __name__ == '__main__':
     main()

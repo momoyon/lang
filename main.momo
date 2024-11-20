@@ -1,1 +1,1 @@
-foo: int = 35 + 34;
+msg: string = "Hello, World";
