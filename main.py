@@ -313,9 +313,82 @@ class Lexer:
             token = self.next_token()
         return tokens
 
+
+class AstNodeType(IntEnum):
+    EXPR  = auto()
+    STMT  = auto()
+    INT   = auto()
+    FLOAT = auto()
+    IDENT = auto()
+    COUNT = auto()
+
+ast_node_type_as_str_map: {AstNodeType : str} = {
+    AstNodeType.EXPR   : "Expr",
+    AstNodeType.STMT   : "Stmt",
+    AstNodeType.INT    : "Int",
+    AstNodeType.FLOAT  : "Float",
+    AstNodeType.IDENT  : "Identifier",
+}
+
+assert len(ast_node_type_as_str_map) == AstNodeType.COUNT-1, "Every AstNodeType is not handled in ast_node_type_as_str_map"
+
+'''
+NOTE: ¢ is a zero length string, meaning nothing will be substituted
+Grammar:
+    Statement       => Ident :? Ident? =? Expression* ;
+    Expression      => Name Binop Name
+    Name            => Value | Ident
+    Value           => Int | Float
+    BinaryOperator  => ArithmeticOp | ComparisionOp | LogicalOp
+    ComparisionOp   => > | >= | < | <= | == | !=
+    ArithmeticOp    => + | - | * | / | %
+    LogicalOp       => && | '||'
+    BinArithmeticOp => ^ | '|' | &
+'''
+
+class AstNode:
+    def __init__(self, typ: AstNodeType):
+        self.typ = typ
+
+class StatementAstNode(AstNode):
+    def __init__(self):
+        __super__(AstNodeType.STMT)
+
+class ExpressionAstNode(AstNode):
+    def __init__(self):
+        __super__(AstNodeType.EXPR)
+
+class IntAstNode(AstNode):
+    def __init__(self, value: int):
+        __super__(AstNodeType.IDENT)
+        self.value = value
+
 class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
+
+    def parse(self, tokens: [Token]) -> AstNode:
+        stmt = self.parseStatement(tokens)
+
+    def parseStatement(self, tokens: [Token]) -> StatementAstNode:
+        if len(tokens) <= 0: return None
+        t: Token = tokens.pop(0)
+        expr = self.parseExpr(tokens)
+
+    def parseExpr(self, tokens: [Token]) -> ExpressionAstNode:
+        lhs = self.parseIdent(tokens)
+        op  = self.parseBinaryOp(tokens)
+        rhs = self.parseIdent(tokens)
+
+    # def parseIdent(self, tokens: [Token]) -> IdentAstNode:
+    #     if len(tokens) <= 0: return None
+    #     t: Token = tokens.pop(0)
+
+    #     if t.typ == TokenType.NUMBER:
+    #         return IdentAstNode(int(t.lexeme))
+    #     elif t.typ == TokenType.IDENT:
+    #         return IdentAstNode(t.lexeme)
+
 
 def main():
     program: str = sys.argv.pop(0)
