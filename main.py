@@ -64,7 +64,8 @@ class TokenType(IntEnum):
     LEFT_SQUARE_BRACE = auto()
     RIGHT_SQUARE_BRACE = auto()
 
-    NUMBER = auto()
+    INT = auto()
+    FLOAT = auto()
     COUNT = auto()
 
 token_type_as_str_map: { TokenType : str } = {
@@ -95,19 +96,20 @@ token_type_as_str_map: { TokenType : str } = {
     TokenType.HASH                 : "Hash",
     TokenType.LEFT_SQUARE_BRACE    : "Left Square Brace",
     TokenType.RIGHT_SQUARE_BRACE   : "Right Square Brace",
-    TokenType.NUMBER               : "Number"
+    TokenType.INT                  : "Int",
+    TokenType.FLOAT                : "Float",
 }
 # NOTE: TokenType.COUNT - 1 because auto() starts from 1
-assert len(token_type_as_str_map) == TokenType.COUNT-1
+assert len(token_type_as_str_map) == TokenType.COUNT-1, "Every TokenType is not handled in token_type_as_str_map"
 
 class Token:
-    def __init__(self, typ: TokenType, value: str, loc: Loc):
+    def __init__(self, typ: TokenType, lexeme: str, loc: Loc):
         self.typ = typ
-        self.value = value
+        self.lexeme = lexeme
         self.loc = loc
 
     def __str__(self):
-        return f"Token ({token_type_as_str_map[self.typ]}, '{self.value}', {self.loc})"
+        return f"Token ({token_type_as_str_map[self.typ]}, '{self.lexeme}', {self.loc})"
 
 class Lexer:
     def __init__(self, filename: str):
@@ -194,7 +196,6 @@ class Lexer:
                 number += self.consume_char()
 
         return (number, number_loc)
-
 
     def left_trim(self):
         while not self.eof() and self.current_char().isspace():
@@ -298,7 +299,7 @@ class Lexer:
             return Token(TokenType.HASH, self.consume_char(), loc)
         elif c.isdigit():
             num, loc = self.consume_number()
-            return Token(TokenType.NUMBER, num, loc)
+            return Token(TokenType.FLOAT if num.find(".") != -1 else TokenType.INT, num, loc)
         else:
             fatal(f"Unrecognized character '{c}'")
 
@@ -312,9 +313,91 @@ class Lexer:
             token = self.next_token()
         return tokens
 
+
+class AstNodeType(IntEnum):
+    EXPR  = auto()
+    STMT  = auto()
+    INT   = auto()
+    FLOAT = auto()
+    IDENT = auto()
+    COUNT = auto()
+
+ast_node_type_as_str_map: {AstNodeType : str} = {
+    AstNodeType.EXPR   : "Expr",
+    AstNodeType.STMT   : "Stmt",
+    AstNodeType.INT    : "Int",
+    AstNodeType.FLOAT  : "Float",
+    AstNodeType.IDENT  : "Identifier",
+}
+
+assert len(ast_node_type_as_str_map) == AstNodeType.COUNT-1, "Every AstNodeType is not handled in ast_node_type_as_str_map"
+
+'''
+NOTE: ¢ is a zero length string, meaning nothing will be substituted
+Grammar:
+    Statement       => Ident :? Ident? =? Expression* ;
+    Expression      => Name Binop Name
+    Name            => LitValue | Ident
+    LitValue        => Int | Float | String
+    BinaryOperator  => ArithmeticOp | ComparisionOp | LogicalOp
+    ComparisionOp   => > | >= | < | <= | == | !=
+    ArithmeticOp    => + | - | * | / | %
+    LogicalOp       => && | '||'
+    BinArithmeticOp => ^ | '|' | &
+'''
+
+class AstNode:
+    def __init__(self, typ: AstNodeType):
+        self.typ = typ
+
+class AstNodeStatement(AstNode):
+    def __init__(self):
+        __super__(AstNodeType.STMT)
+
+class AstNodeExpression(AstNode):
+    def __init__(self):
+        __super__(AstNodeType.EXPR)
+
+class AstNodeInt(AstNode):
+    def __init__(self, value: int):
+        __super__(AstNodeType.IDENT)
+        self.value = value
+
 class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
+
+    def syntax_error(self, msg: str, token: Token):
+        fatal(f"{str(token.loc)}: Syntax Error: {msg}")
+
+    def parse(self) -> AstNode:
+        stmt = self.parseStatement()
+        return stmt
+
+    def parseStatement(self) -> AstNodeStatement:
+        tokens = self.tokens
+        if len(tokens) <= 0: return None
+        var_name = tokens.pop(0)
+        var_typ  = None
+        # Check if colon is there
+        if tokens[0].typ == TokenType.COLON:
+            colon = tokens.pop(0)
+            var_typ = None if len(tokens) <= 0 else tokens.pop(0)
+            eof_msg = "Reached End of File"
+            typ_mismatch_msg = f"Got {token_type_as_str_map[var_typ.typ]}"
+            if var_typ == None or var_typ.typ != TokenType.IDENT:
+                self.syntax_error("Expected type of variable after colon, but %s" % eof_msg if var_typ == None else typ_mismatch_msg, colon)
+
+        dlog(var_name)
+        if var_typ != None:
+            dlog(var_typ)
+
+        print("TODO: Implement parseStatement()")
+        exit(1)
+        # expr = self.parseExpr()
+
+    def parseExpr(self) -> AstNodeExpression:
+        pass
 
 def main():
     program: str = sys.argv.pop(0)
@@ -332,6 +415,8 @@ def main():
 
     # TODO: Parse
     parser = Parser(tokens)
+
+    parser.parse()
 
     for t in tokens:
         pprint.pp(str(t))
