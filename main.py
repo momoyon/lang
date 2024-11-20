@@ -66,6 +66,13 @@ class TokenType(IntEnum):
 
     INT = auto()
     FLOAT = auto()
+
+    BINARY_AND = auto()
+    BINARY_NOT = auto()
+    BINARY_OR = auto()
+    LOGICAL_AND = auto()
+    LOGICAL_OR = auto()
+
     COUNT = auto()
 
 token_type_as_str_map: { TokenType : str } = {
@@ -96,6 +103,11 @@ token_type_as_str_map: { TokenType : str } = {
     TokenType.HASH                 : "Hash",
     TokenType.LEFT_SQUARE_BRACE    : "Left Square Brace",
     TokenType.RIGHT_SQUARE_BRACE   : "Right Square Brace",
+    TokenType.BINARY_AND           : "Binary And",
+    TokenType.BINARY_OR            : "Binary Or",
+    TokenType.BINARY_NOT           : "Binary Not",
+    TokenType.LOGICAL_AND          : "Logical And",
+    TokenType.LOGICAL_OR           : "Logical Or",
     TokenType.INT                  : "Int",
     TokenType.FLOAT                : "Float",
 }
@@ -300,6 +312,21 @@ class Lexer:
         elif c.isdigit():
             num, loc = self.consume_number()
             return Token(TokenType.FLOAT if num.find(".") != -1 else TokenType.INT, num, loc)
+        elif c == '&':
+            loc = Loc(self.filename, self.line, self.row())
+            # Check if '&&'
+            if self.peek_next_char() == '&':
+                return Token(TokenType.LOGICAL_AND, self.consume_char() + self.consume_char(), loc)
+            return Token(TokenType.BINARY_AND, self.consume_char(), loc)
+        elif c == '|':
+            loc = Loc(self.filename, self.line, self.row())
+            # Check if '||'
+            if self.peek_next_char() == '|':
+                return Token(TokenType.LOGICAL_OR, self.consume_char() + self.consume_char(), loc)
+            return Token(TokenType.BINARY_OR, self.consume_char(), loc)
+        elif c == '~':
+            loc = Loc(self.filename, self.line, self.row())
+            return Token(TokenType.BINARY_NOT, self.consume_char(), loc)
         else:
             fatal(f"Unrecognized character '{c}'")
 

@@ -1,1 +1,1 @@
-'[ERROR] ./tests/01-unterminated-string.momo:1:21: Unterminated string!'
+[ERROR] ./tests/01-unterminated-string.momo:1:21: Unterminated string!
