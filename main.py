@@ -64,7 +64,8 @@ class TokenType(IntEnum):
     LEFT_SQUARE_BRACE = auto()
     RIGHT_SQUARE_BRACE = auto()
 
-    NUMBER = auto()
+    INT = auto()
+    FLOAT = auto()
     COUNT = auto()
 
 token_type_as_str_map: { TokenType : str } = {
@@ -95,10 +96,11 @@ token_type_as_str_map: { TokenType : str } = {
     TokenType.HASH                 : "Hash",
     TokenType.LEFT_SQUARE_BRACE    : "Left Square Brace",
     TokenType.RIGHT_SQUARE_BRACE   : "Right Square Brace",
-    TokenType.NUMBER               : "Number"
+    TokenType.INT                  : "Int",
+    TokenType.FLOAT                : "Float",
 }
 # NOTE: TokenType.COUNT - 1 because auto() starts from 1
-assert len(token_type_as_str_map) == TokenType.COUNT-1
+assert len(token_type_as_str_map) == TokenType.COUNT-1, "Every TokenType is not handled in token_type_as_str_map"
 
 class Token:
     def __init__(self, typ: TokenType, lexeme: str, loc: Loc):
@@ -194,7 +196,6 @@ class Lexer:
                 number += self.consume_char()
 
         return (number, number_loc)
-
 
     def left_trim(self):
         while not self.eof() and self.current_char().isspace():
@@ -298,7 +299,7 @@ class Lexer:
             return Token(TokenType.HASH, self.consume_char(), loc)
         elif c.isdigit():
             num, loc = self.consume_number()
-            return Token(TokenType.NUMBER, num, loc)
+            return Token(TokenType.FLOAT if num.find(".") != -1 else TokenType.INT, num, loc)
         else:
             fatal(f"Unrecognized character '{c}'")
 
