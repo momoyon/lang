@@ -13,7 +13,7 @@ def info(msg):
     pprint.pp(f"[INFO] {msg}")
 
 def error(msg):
-    pprint.pp(f"[ERROR] {msg}")
+    print(f"[ERROR] {msg}")
 
 def fatal(msg, err_code = 1):
     error(msg)
@@ -347,21 +347,27 @@ Grammar:
 '''
 
 class AstNode:
-    def __init__(self, typ: AstNodeType):
+    def __init__(self, token: Token, typ: AstNodeType):
+        self.token = token
         self.typ = typ
 
 class AstNodeStatement(AstNode):
-    def __init__(self):
-        __super__(AstNodeType.STMT)
+    def __init__(self, token: Token):
+        super().__init__(token, AstNodeType.STMT)
 
 class AstNodeExpression(AstNode):
-    def __init__(self):
-        __super__(AstNodeType.EXPR)
+    def __init__(self, token: Token):
+        super().__init__(token, AstNodeType.EXPR)
 
 class AstNodeInt(AstNode):
-    def __init__(self, value: int):
-        __super__(AstNodeType.IDENT)
+    def __init__(self, token: Token, value: int):
+        super().__init__(token, AstNodeType.INT)
         self.value = value
+
+class AstNodeIdentifier(AstNode):
+    def __init__(self, token: Token, name: str):
+        super().__init__(token, AstNodeType.IDENT)
+        self.name = name
 
 class Parser:
     def __init__(self, tokens):
@@ -376,25 +382,32 @@ class Parser:
 
     def parseStatement(self) -> AstNodeStatement:
         tokens = self.tokens
-        if len(tokens) <= 0: return None
-        var_name = tokens.pop(0)
+        # Variable name
+        ident_ast = self.parseIdentifier()
         var_typ  = None
         # Check if colon is there
-        if tokens[0].typ == TokenType.COLON:
+        if len(tokens) >= 1 and tokens[0].typ == TokenType.COLON:
+            # TODO: Should i make an AstNode for the colon too?
             colon = tokens.pop(0)
             var_typ = None if len(tokens) <= 0 else tokens.pop(0)
-            eof_msg = "Reached End of File"
-            typ_mismatch_msg = f"Got {token_type_as_str_map[var_typ.typ]}"
             if var_typ == None or var_typ.typ != TokenType.IDENT:
-                self.syntax_error("Expected type of variable after colon, but %s" % eof_msg if var_typ == None else typ_mismatch_msg, colon)
+                if var_typ == None: error_msg = "Reached End of File"
+                else: error_msg = f"Got {token_type_as_str_map[var_typ.typ]}"
+                self.syntax_error("Expected type of variable after colon, but %s" % error_msg, colon)
 
-        dlog(var_name)
+        dlog(ident_ast.token)
         if var_typ != None:
             dlog(var_typ)
 
         print("TODO: Implement parseStatement()")
         exit(1)
         # expr = self.parseExpr()
+
+    def parseIdentifier(self) -> AstNodeIdentifier:
+        if len(self.tokens) <= 0: return None
+        if self.tokens[0].typ != TokenType.IDENT: return None
+        ident_token = self.tokens.pop(0)
+        return AstNodeIdentifier(ident_token, ident_token.lexeme)
 
     def parseExpr(self) -> AstNodeExpression:
         pass
@@ -416,10 +429,10 @@ def main():
     # TODO: Parse
     parser = Parser(tokens)
 
-    parser.parse()
+    # for t in tokens:
+    #     pprint.pp(str(t))
 
-    for t in tokens:
-        pprint.pp(str(t))
+    parser.parse()
 
 if __name__ == '__main__':
     main()
