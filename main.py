@@ -78,7 +78,7 @@ class TokenType(IntEnum):
     COUNT = auto()
 
 token_type_as_str_map = {
-    TokenType.IDENT                : "Ident",
+    TokenType.IDENT                : "Identifier",
     TokenType.STRING               : "String",
     TokenType.LEFT_PAREN           : "Left Paren",
     TokenType.RIGHT_PAREN          : "Right Paren",
@@ -351,16 +351,18 @@ class AstNodeType(IntEnum):
     IDENT = auto()
     STRING = auto()
     BINARY_OP = auto()
+    COLON = auto()
     COUNT = auto()
 
 ast_node_type_as_str_map: dict[AstNodeType, str] = {
-    AstNodeType.EXPR    : "Expr",
-    AstNodeType.STMT    : "Stmt",
-    AstNodeType.INT     : "Int",
-    AstNodeType.FLOAT   : "Float",
-    AstNodeType.IDENT   : "Identifier",
-    AstNodeType.STRING  : "String",
-    AstNodeType.BINARY_OP: "Binary Op",
+    AstNodeType.EXPR      : "Expr",
+    AstNodeType.STMT      : "Stmt",
+    AstNodeType.INT       : "Int",
+    AstNodeType.FLOAT     : "Float",
+    AstNodeType.IDENT     : "Identifier",
+    AstNodeType.STRING    : "String",
+    AstNodeType.BINARY_OP : "Binary Op",
+    AstNodeType.COLON     : "Colon",
 }
 
 assert len(ast_node_type_as_str_map) == AstNodeType.COUNT-1, "Every AstNodeType is not handled in ast_node_type_as_str_map"
@@ -384,15 +386,22 @@ class AstNode:
         self.token = token
         self.typ = typ
 
-class AstNodeStatement(AstNode):
-    def __init__(self, token: Token, var_name, var_type, expr: AstNode):
-        super().__init__(token, AstNodeType.STMT)
-        self.var_name = var_name
-        self.var_type = var_type
-        self.expr = expr
+class AstNodeIdentifier(AstNode):
+    def __init__(self, token: Token, name: str):
+        super().__init__(token, AstNodeType.IDENT)
+        self.name = name
 
     def __repr__(self):
-        return f"{self.var_name.__repr__()} : {self.var_type.__repr__()} = {self.expr.__repr__()}"
+        return f"IDENT: {self.name}"
+
+class AstNodeColon(AstNode):
+    def __init__(self, token: Token, ident: AstNodeIdentifier, typ: AstNodeIdentifier):
+        super().__init__(token, AstNodeType.COLON)
+        self.ident = ident
+        self.var_type = typ
+
+    def __repr__(self):
+        return f"COLON: {self.var_type}"
 
 class AstNodeExpression(AstNode):
     def __init__(self, token: Token, lhs, binop, rhs):
@@ -402,7 +411,19 @@ class AstNodeExpression(AstNode):
         self.rhs = rhs
 
     def __repr__(self):
-        return f"{self.lhs.__repr__()} {self.binop.__repr__()} {self.rhs.__repr__()}"
+        return f"EXPR: {self.lhs.__repr__()} {self.binop.__repr__()} {self.rhs.__repr__()}"
+
+class AstNodeStatement(AstNode):
+    def __init__(self, token: Token, var_name: AstNodeIdentifier, colon_ast: AstNodeColon | None, expr: AstNodeExpression | None):
+        super().__init__(token, AstNodeType.STMT)
+        self.var_name: AstNodeIdentifier = var_name
+        self.colon: AstNodeColon | None = colon_ast
+        self.expr: AstNodeExpression | None = expr
+
+    def __repr__(self):
+        if self.colon == None:
+            return f"STMT: {self.var_name}"
+        return f"STMT: {self.var_name.__repr__()} : {self.colon} = {self.expr.__repr__()}"
 
 class AstNodeInt(AstNode):
     def __init__(self, token: Token, value: int):
@@ -410,15 +431,15 @@ class AstNodeInt(AstNode):
         self.value = value
 
     def __repr__(self):
-        return f"{self.value}"
+        return f"INT: {self.value}"
 
-class AstNodeIdentifier(AstNode):
-    def __init__(self, token: Token, name: str):
-        super().__init__(token, AstNodeType.IDENT)
-        self.name = name
+class AstNodeFloat(AstNode):
+    def __init__(self, token: Token, value: float):
+        super().__init__(token, AstNodeType.FLOAT)
+        self.value = value
 
     def __repr__(self):
-        return f"{self.name}"
+        return f"FLOAT: {self.value}"
 
 class AstNodeString(AstNode):
     def __init__(self, token: Token, string: str):
@@ -426,37 +447,50 @@ class AstNodeString(AstNode):
         self.string = string
 
     def __repr__(self):
-        return f"'{self.string}'"
+        return f"STRING: '{self.string}'"
 
-# TODO: Do we need to split binary op ast?
 class AstNodeBinaryOp(AstNode):
     def __init__(self, token: Token):
         super().__init__(token, AstNodeType.BINARY_OP)
         self.op = self.token.lexeme
 
     def __repr__(self):
-        return f"{self.op}"
+        return f"BINOP: {self.op}"
 
-# TODO: Use Exceptions for error handling, that way i can now the call stack
-class ParseError(IntEnum):
-    EOF = auto()
-    UNEXPECTED_TOKEN = auto()
-    NAH = auto()
-    COUNT = auto()
+# class ParseError(IntEnum):
+#     EOF = auto()
+#     UNEXPECTED_TOKEN = auto()
+#     NAH = auto()
+#     COUNT = auto()
 
-parse_error_as_str_map: dict[ParseError, str] = {
-    ParseError.EOF : "Eof",
-    ParseError.UNEXPECTED_TOKEN : "Unexpected Token",
-    ParseError.NAH : "Nah",
-}
-assert len(parse_error_as_str_map) == ParseError.COUNT-1, "Every ParseError is not handled in parse_error_as_str_map"
+# parse_error_as_str_map: dict[ParseError, str] = {
+#     "Reached End of File!" : "Eof",
+#     ParseError.UNEXPECTED_TOKEN : "Unexpected Token",
+#     ParseError.NAH : "Nah",
+# }
+# assert len(parse_error_as_str_map) == ParseError.COUNT-1, "Every ParseError is not handled in parse_error_as_str_map"
 
-class ParseException(Exception):
-    def __init__(self, typ: ParseError):
-        self.typ = typ
+class ParseUnexpectedType(Exception):
+    def __init__(self, expected: TokenType, got: Token):
+        self.expected: TokenType = expected
+        self.got: Token = got
+
+    def __str__(self):
+        return self.__repr__()
 
     def __repr__(self):
-        return f"Parse Exception: {parse_error_as_str_map[self.typ]}"
+        return f"{self.got.loc}: Parse Error: Expected {token_type_as_str_map[self.expected]}, But got {token_type_as_str_map[self.got.typ]}"
+
+# TODO: Make version of ParseEOF that excepts an variadic number of arguments, since some times we expect many types of tokens
+class ParseEOF(Exception):
+    def __init__(self, expected: TokenType):
+        self.expected: TokenType = expected
+
+    def __str__(self):
+        return self.__repr__()
+
+    def __repr__(self):
+        return f"Parse Error: Expected {token_type_as_str_map[self.expected]}, But reached EOF"
 
 class Parser:
     def __init__(self, tokens):
@@ -466,102 +500,114 @@ class Parser:
         fatal(f"{str(token.loc)}: Syntax Error: {msg}")
 
     def parse(self) -> AstNode:
-        stmt = self.parseStatement()
-        assert isinstance(stmt, AstNode)
+        stmt = None
+        try:
+            stmt = self.parseStatement()
+        except Exception as e:
+            error(e)
+            exit(1)
         return stmt
 
-    def parseStatement(self) -> AstNode | None:
+    def parseStatement(self) -> AstNodeStatement:
         tokens = self.tokens
+
         # Variable name
         var_name_ast = self.parseIdentifier()
-        # TODO: Check for var_name_ast
         var_type_ast = None
-        # Check if colon is there
-        if len(tokens) >= 1 and tokens[0].typ == TokenType.COLON:
-            # TODO: Should i make an AstNode for the colon too?
-            colon = tokens.pop(0)
-            var_type_ast = self.parseIdentifier()
-            if var_type_ast == ParseError.EOF:
-                self.syntax_error("Expected type of variable after colon, but reached end of file", colon)
-            elif var_type_ast == ParseError.UNEXPECTED_TOKEN:
-                unexpected_token = tokens[0]
-                self.syntax_error(f"Expected type of variable after colon, but got {token_type_as_str_map[unexpected_token.typ]}", colon)
 
-        # dlog(var_name_ast)
-        # if var_type_ast != None:
-        #     dlog(var_type_ast)
+        # WIP: Check if this statemen is an assignment or just {ident;}
+        colon_ast = self.parseColon(var_name_ast)
 
-        equal: Token | None = None
-        if len(tokens) >= 1 and tokens[0].typ == TokenType.EQUAL:
-            equal = tokens.pop(0)
+        if colon_ast == None:
+            semicolon = self.parseSemicolon()
+            return AstNodeStatement(var_name_ast.token, var_name_ast, None, None)
 
-        if equal == None:
-            if len(tokens) <= 0: raise ParseException(ParseError.EOF)
-            semicolon = tokens.pop(0)
-            if semicolon.typ != TokenType.SEMICOLON:
-                fatal("We don't support Statements with more than one expressions yet!")
+        dlog(var_name_ast)
+        dlog(colon_ast)
 
-        expr = self.parseExpression()
+        if len(self.tokens) <= 0: raise ParseEOF(TokenType.EQUAL)
+        if tokens[0].typ != TokenType.EQUAL: raise ParseUnexpectedType(TokenType.EQUAL, tokens[0])
 
-        # dlog(f"EXPR: {expr}")
+        equal = tokens.pop(0)
 
-        if isinstance(expr, ParseError):
-            if expr == ParseError.EOF:
-                assert isinstance(equal, Token)
-                self.syntax_error(f"Expected ; but reached EOF", equal)
+        dlog("UNIMPLEMENTED")
+        exit(1)
 
-        semicolon = tokens.pop(0)
-        if semicolon.typ != TokenType.SEMICOLON:
-            fatal("We don't support Statements with more than one expressions yet!")
+        # expr = self.parseExpression()
+        # assert expr != None
+        # expr = cast(AstNode, expr)
 
-        return AstNodeStatement(var_name_ast.token, var_name_ast, var_type_ast, expr)
+        # # dlog(f"EXPR: {expr}")
 
+        # if isinstance(expr, ParseError):
+        #     if expr == "Reached End of File!":
+        #         assert isinstance(equal, Token)
+        #         self.syntax_error(f"Expected ; but reached EOF", equal)
 
-    def parseIdentifier(self) -> AstNode | None:
-        if len(self.tokens) <= 0: raise ParseException(ParseError.EOF)
-        if self.tokens[0].typ != TokenType.IDENT: return ParseException(ParseError.UNEXPECTED_TOKEN)
+        # semicolon = tokens.pop(0)
+        # if semicolon.typ != TokenType.SEMICOLON:
+        #     fatal("We don't support Statements with more than one expressions yet!")
+
+        # return AstNodeStatement(var_name_ast.token, var_name_ast, var_type_ast, expr)
+
+    def parseSemicolon(self) -> Token:
+        if len(self.tokens) <= 0: raise ParseEOF(TokenType.SEMICOLON)
+        if self.tokens[0].typ != TokenType.SEMICOLON: raise ParseUnexpectedType(TokenType.SEMICOLON, self.tokens[0])
+
+        return self.tokens.pop(0)
+
+    def parseColon(self, ident_ast: AstNodeIdentifier) -> AstNodeColon:
+        if len(self.tokens) <= 0: raise ParseEOF(TokenType.COLON)
+        if self.tokens[0].typ != TokenType.COLON: raise ParseUnexpectedType(TokenType.COLON, self.tokens[0])
+
+        colon: Token = self.tokens.pop(0)
+
+        type_ast: AstNodeIdentifier = self.parseIdentifier()
+
+        return AstNodeColon(colon, ident_ast, type_ast)
+
+    def parseIdentifier(self) -> AstNodeIdentifier:
+        if len(self.tokens) <= 0: raise ParseEOF(TokenType.IDENT)
+        if self.tokens[0].typ != TokenType.IDENT: raise ParseUnexpectedType(TokenType.IDENT, self.tokens[0])
         ident_token = self.tokens.pop(0)
         return AstNodeIdentifier(ident_token, ident_token.lexeme)
 
     def parseExpression(self) -> AstNode | None:
-        if len(self.tokens) <= 0: return ParseException(ParseError.EOF)
+        if len(self.tokens) <= 0: raise ParseEOF(TokenType.IDENT)
         t = self.tokens[0]
 
         lhs = self.parseName()
-        if isinstance(lhs, ParseError):
-            return lhs
 
-        current_node = lhs
+        current_node: AstNode = cast(AstNode, lhs)
 
-        while True:
-            # Parse the binary operator
-            binop = self.parseBinOp()
-            if isinstance(binop, ParseError):
-                return binop  # Return error if parsing failed
+        # while True:
+        #     # Parse the binary operator
+        #     binop = self.parseBinOp()
+        #     if isinstance(binop, ParseError):
+        #         return binop  # Return error if parsing failed
 
-            # Parse the next Name (rhs)
-            rhs = self.parseName()
-            if isinstance(rhs, ParseError):
-                return rhs  # Return error if parsing failed
+        #     # Parse the next Name (rhs)
+        #     rhs = self.parseName()
+        #     if isinstance(rhs, ParseError):
+        #         return rhs  # Return error if parsing failed
 
-            # Create a new AST node for the binary operation
-            current_node = AstNodeExpression(current_node, binop, rhs)
+        #     # Create a new AST node for the binary operation
+        #     current_node = AstNodeExpression(current_node.token, current_node, binop, rhs)
 
-            # Check if there are more tokens to parse
-            if len(self.tokens) <= 0:
-                break
+        #     # Check if there are more tokens to parse
+        #     if len(self.tokens) <= 0:
+        #         break
 
         return current_node
 
     def parseName(self) -> AstNode | None:
-        if len(self.tokens) <= 0: return ParseException(ParseError.EOF)
+        if len(self.tokens) <= 0: raise ParseEOF(TokenType.IDENT)
         name = self.parseLiteralValue()
-        if isinstance(name, ParseError):
-            return self.parseIdentifier()
+        # return self.parseIdentifier()
         return name
 
     def parseLiteralValue(self) -> AstNode | None:
-        if len(self.tokens) <= 0: return ParseException(ParseError.EOF)
+        if len(self.tokens) <= 0: raise ParseEOF(TokenType.INT)
         t = self.tokens.pop(0)
         if t.typ == TokenType.INT:
             return AstNodeInt(t, int(t.lexeme))
@@ -576,15 +622,15 @@ class Parser:
         # TODO: Check if Operator predecence is correct
 
         arithmeticOp = self.parseArithmeticOp()
-        if arithmeticOp != None and arithmeticOp != ParseError.EOF:
+        if arithmeticOp != None and arithmeticOp != "Reached End of File!":
             return arithmeticOp
 
         comparisonOp = self.parseComparisonOp()
-        if comparisonOp != None and arithmeticOp != ParseError.EOF:
+        if comparisonOp != None and arithmeticOp != "Reached End of File!":
             return comparisonOp
 
         logicalOp = self.parseLogicalOp()
-        if logicalOp != None and arithmeticOp != ParseError.EOF:
+        if logicalOp != None and arithmeticOp != "Reached End of File!":
             return logicalOp
 
         return self.parseBinaryArithmeticOp()
@@ -592,25 +638,25 @@ class Parser:
         assert False, "UNREACHABLE!"
 
     def parseComparisonOp(self) -> AstNode | None:
-        if len(self.tokens) <= 0: return ParseException(ParseError.EOF)
+        if len(self.tokens) <= 0: raise ParseEOF(TokenType.GT)
         t = self.tokens.pop(0)
 
         if t.typ in [ TokenType.GT, TokenType.GTE, TokenType.LT, TokenType.LTE, TokenType.EQUAL_EQUAL, TokenType.NOT_EQUAL ]:
-            return AstNodeComparisonOp(t)
+            return AstNodeBinaryOp(t)
 
         return None
 
     def parseLogicalOp(self) -> AstNode | None:
-        if len(self.tokens) <= 0: return ParseException(ParseError.EOF)
+        if len(self.tokens) <= 0: raise ParseEOF(TokenType.LOGICAL_AND)
         t = self.tokens.pop(0)
 
         if t.typ in [ TokenType.LOGICAL_AND, TokenType.LOGICAL_OR ]:
-            return AstNodeComparisonOp(t)
+            return AstNodeBinaryOp(t)
 
         return None
 
     def parseArithmeticOp(self) -> AstNode | None:
-        if len(self.tokens) <= 0: return ParseException(ParseError.EOF)
+        if len(self.tokens) <= 0: raise ParseEOF(TokenType.PLUS)
         t = self.tokens.pop(0)
 
         if t.typ in [ TokenType.PLUS, TokenType.MINUS, TokenType.DIVIDE, TokenType.MODULUS ]:
@@ -619,7 +665,7 @@ class Parser:
         return None
 
     def parseBinaryArithmeticOp(self) -> AstNode | None:
-        if len(self.tokens) <= 0: return ParseException(ParseError.EOF)
+        if len(self.tokens) <= 0: raise ParseEOF(TokenType.BINARY_AND)
         t = self.tokens.pop(0)
 
         if t.typ in [ TokenType.BINARY_AND, TokenType.BINARY_OR, TokenType.BINARY_NOT ]:
