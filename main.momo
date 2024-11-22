@@ -1,1 +1,1 @@
-msg: string = "Hello, World";
+msg: string = "Hello, World"
