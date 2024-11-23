@@ -471,15 +471,22 @@ class AstNodeBinaryOp(AstNode):
 # assert len(parse_error_as_str_map) == ParseError.COUNT-1, "Every ParseError is not handled in parse_error_as_str_map"
 
 class ParseUnexpectedType(Exception):
-    def __init__(self, expected: TokenType, got: Token):
-        self.expected: TokenType = expected
+    def __init__(self, got: Token, *expected_types: list[TokenType]):
+        self.expected_types: list[TokenType] = expected_types
         self.got: Token = got
 
     def __str__(self):
         return self.__repr__()
 
     def __repr__(self):
-        return f"{self.got.loc}: Parse Error: Expected {token_type_as_str_map[self.expected]}, But got {token_type_as_str_map[self.got.typ]}"
+        buf: str = "Parse Error: Expected "
+        for i in range(len(self.expected_types)):
+            e: TokenType = self.expected_types[i]
+            buf += f"{token_type_as_str_map[e]}"
+            if i != len(self.expected_types)-1:
+                buf += " or "
+        buf += f", But got {token_type_as_str_map[self.got.typ]}"
+        return buf
 
 class ParseEOF(Exception):
     def __init__(self, *expected_types: list[TokenType]):
@@ -564,13 +571,13 @@ class Parser:
 
     def parseSemicolon(self) -> Token:
         if len(self.tokens) <= 0: raise ParseEOF(TokenType.SEMICOLON)
-        if self.tokens[0].typ != TokenType.SEMICOLON: raise ParseUnexpectedType(TokenType.SEMICOLON, self.tokens[0])
+        if self.tokens[0].typ != TokenType.SEMICOLON: raise ParseUnexpectedType(self.tokens[0], TokenType.SEMICOLON, TokenType.COLON)
 
         return self.tokens.pop(0)
 
     def parseColon(self, ident_ast: AstNodeIdentifier) -> AstNodeColon:
         if len(self.tokens) <= 0: raise ParseEOF(TokenType.COLON, TokenType.SEMICOLON)
-        if self.tokens[0].typ != TokenType.COLON: raise ParseUnexpectedType(TokenType.COLON, self.tokens[0])
+        if self.tokens[0].typ != TokenType.COLON: raise ParseUnexpectedType(self.tokens[0], TokenType.COLON)
 
         colon: Token = self.tokens.pop(0)
 
@@ -580,7 +587,7 @@ class Parser:
 
     def parseIdentifier(self) -> AstNodeIdentifier:
         if len(self.tokens) <= 0: raise ParseEOF(TokenType.IDENT)
-        if self.tokens[0].typ != TokenType.IDENT: raise ParseUnexpectedType(TokenType.IDENT, self.tokens[0])
+        if self.tokens[0].typ != TokenType.IDENT: raise ParseUnexpectedType(self.tokens[0], TokenType.IDENT)
         ident_token = self.tokens.pop(0)
         return AstNodeIdentifier(ident_token, ident_token.lexeme)
 
