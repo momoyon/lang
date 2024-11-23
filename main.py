@@ -481,16 +481,23 @@ class ParseUnexpectedType(Exception):
     def __repr__(self):
         return f"{self.got.loc}: Parse Error: Expected {token_type_as_str_map[self.expected]}, But got {token_type_as_str_map[self.got.typ]}"
 
-# TODO: Make version of ParseEOF that excepts an variadic number of arguments, since some times we expect many types of tokens
 class ParseEOF(Exception):
-    def __init__(self, expected: TokenType):
-        self.expected: TokenType = expected
+    def __init__(self, *expected_types: list[TokenType]):
+        self.expected_types: list[TokenType] = expected_types
 
     def __str__(self):
         return self.__repr__()
 
     def __repr__(self):
-        return f"Parse Error: Expected {token_type_as_str_map[self.expected]}, But reached EOF"
+        buf: str = "Parse Error: Expected "
+        for i in range(len(self.expected_types)):
+            e: TokenType = self.expected_types[i]
+            buf += f"{token_type_as_str_map[e]}"
+            if i != len(self.expected_types)-1:
+                buf += " or "
+        buf += ", But reached EOF"
+
+        return buf
 
 class Parser:
     def __init__(self, tokens):
@@ -515,8 +522,13 @@ class Parser:
         var_name_ast = self.parseIdentifier()
         var_type_ast = None
 
-        # WIP: Check if this statemen is an assignment or just {ident;}
-        colon_ast = self.parseColon(var_name_ast)
+        # WIP: Check if this statement is an assignment or just {ident;}
+        colon_ast: AstNodeColon | None = None
+        try:
+            colon_ast = self.parseColon(var_name_ast)
+            colon_ast = cast(AstNode, colon_ast)
+        except ParseUnexpectedType:
+            pass
 
         if colon_ast == None:
             semicolon = self.parseSemicolon()
@@ -557,7 +569,7 @@ class Parser:
         return self.tokens.pop(0)
 
     def parseColon(self, ident_ast: AstNodeIdentifier) -> AstNodeColon:
-        if len(self.tokens) <= 0: raise ParseEOF(TokenType.COLON)
+        if len(self.tokens) <= 0: raise ParseEOF(TokenType.COLON, TokenType.SEMICOLON)
         if self.tokens[0].typ != TokenType.COLON: raise ParseUnexpectedType(TokenType.COLON, self.tokens[0])
 
         colon: Token = self.tokens.pop(0)
