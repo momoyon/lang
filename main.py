@@ -392,7 +392,7 @@ class AstNodeIdentifier(AstNode):
         self.name = name
 
     def __repr__(self):
-        return f"IDENT: {self.name}"
+        return f"<Ident: {self.name}>"
 
 class AstNodeColon(AstNode):
     def __init__(self, token: Token, ident: AstNodeIdentifier, typ: AstNodeIdentifier):
@@ -401,7 +401,8 @@ class AstNodeColon(AstNode):
         self.var_type = typ
 
     def __repr__(self):
-        return f"COLON: {self.var_type}"
+        return f"<Colon: {self.var_type}>"
+
 class AstNodeBinaryOp(AstNode):
     def __init__(self, token: Token):
         super().__init__(token, AstNodeType.BINARY_OP)
@@ -419,7 +420,7 @@ class AstNodeExpression(AstNode):
         self.rhs = rhs
 
     def __repr__(self):
-        return f"EXPR: {self.lhs.__repr__()} {self.binop.__repr__()} {self.rhs.__repr__()}"
+        return f"<Expr: {self.lhs.__repr__()} {self.binop.__repr__()} {self.rhs.__repr__()}>"
 
 class AstNodeStatement(AstNode):
     def __init__(self, token: Token, var_name: AstNodeIdentifier, colon_ast: AstNodeColon | None, equal: Token | None, expr: AstNodeExpression | None):
@@ -432,8 +433,8 @@ class AstNodeStatement(AstNode):
 
     def __repr__(self):
         if self.colon == None:
-            return f"STMT: {self.var_name}"
-        return f"STMT: {self.var_name.__repr__()} : {self.colon} = {self.expr.__repr__()}"
+            return f"<Stmt: {self.var_name}>"
+        return f"<Stmt: {self.var_name.__repr__()} : {self.colon} = {self.expr.__repr__()}>"
 
 class AstNodeInt(AstNode):
     def __init__(self, token: Token, value: int):
@@ -441,7 +442,7 @@ class AstNodeInt(AstNode):
         self.value = value
 
     def __repr__(self):
-        return f"INT: {self.value}"
+        return f"<Int: {self.value}>"
 
 class AstNodeFloat(AstNode):
     def __init__(self, token: Token, value: float):
@@ -449,7 +450,7 @@ class AstNodeFloat(AstNode):
         self.value = value
 
     def __repr__(self):
-        return f"FLOAT: {self.value}"
+        return f"<Float: {self.value}>"
 
 class AstNodeString(AstNode):
     def __init__(self, token: Token, string: str):
@@ -457,7 +458,7 @@ class AstNodeString(AstNode):
         self.string = string
 
     def __repr__(self):
-        return f"STRING: '{self.string}'"
+        return f"<String: '{self.string}'>"
 
 # class ParseError(IntEnum):
 #     EOF = auto()
