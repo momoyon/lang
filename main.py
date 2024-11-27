@@ -371,7 +371,7 @@ assert len(ast_node_type_as_str_map) == AstNodeType.COUNT-1, "Every AstNodeType 
 NOTE: ¢ is a zero length string, meaning nothing will be substituted
 Grammar:
     Statement       => Ident :? Ident? =? Expression* ';' ;
-    Expression      => Name (Binop Name)* ;
+    Expression      => Name (BinaryOperator Name)*;
     Name            => LitValue | Ident ;
     LitValue        => Int | Float | String ;
     BinaryOperator  => ArithmeticOp | ComparisonOp | LogicalOp | BinArithmeticOp ;
@@ -402,10 +402,18 @@ class AstNodeColon(AstNode):
 
     def __repr__(self):
         return f"COLON: {self.var_type}"
+class AstNodeBinaryOp(AstNode):
+    def __init__(self, token: Token):
+        super().__init__(token, AstNodeType.BINARY_OP)
+        self.op = self.token.lexeme
+
+    def __repr__(self):
+        return f"<Binop: {self.op}>"
 
 class AstNodeExpression(AstNode):
-    def __init__(self, token: Token, lhs, binop, rhs):
+    def __init__(self, token: Token, firstName, binop_and_names: list[tuple[AstNodeBinaryOp, AstNode]]):
         super().__init__(token, AstNodeType.EXPR)
+        self.firstName = firstName
         self.lhs = lhs
         self.binop = binop
         self.rhs = rhs
@@ -414,10 +422,12 @@ class AstNodeExpression(AstNode):
         return f"EXPR: {self.lhs.__repr__()} {self.binop.__repr__()} {self.rhs.__repr__()}"
 
 class AstNodeStatement(AstNode):
-    def __init__(self, token: Token, var_name: AstNodeIdentifier, colon_ast: AstNodeColon | None, expr: AstNodeExpression | None):
+    def __init__(self, token: Token, var_name: AstNodeIdentifier, colon_ast: AstNodeColon | None, equal: Token | None, expr: AstNodeExpression | None):
         super().__init__(token, AstNodeType.STMT)
         self.var_name: AstNodeIdentifier = var_name
         self.colon: AstNodeColon | None = colon_ast
+        # TODO: Should equal also be a separate AstNode?
+        self.equal: Token | None = equal
         self.expr: AstNodeExpression | None = expr
 
     def __repr__(self):
@@ -448,14 +458,6 @@ class AstNodeString(AstNode):
 
     def __repr__(self):
         return f"STRING: '{self.string}'"
-
-class AstNodeBinaryOp(AstNode):
-    def __init__(self, token: Token):
-        super().__init__(token, AstNodeType.BINARY_OP)
-        self.op = self.token.lexeme
-
-    def __repr__(self):
-        return f"BINOP: {self.op}"
 
 # class ParseError(IntEnum):
 #     EOF = auto()
@@ -518,8 +520,11 @@ class Parser:
         try:
             stmt = self.parseStatement()
         except Exception as e:
-            error(e)
-            exit(1)
+            if DEBUG:
+                raise e
+            else:
+                error(e)
+                exit(1)
         return stmt
 
     def parseStatement(self) -> AstNodeStatement:
@@ -527,7 +532,6 @@ class Parser:
 
         # Variable name
         var_name_ast = self.parseIdentifier()
-        var_type_ast = None
 
         # WIP: Check if this statement is an assignment or just {ident;}
         colon_ast: AstNodeColon | None = None
@@ -549,25 +553,13 @@ class Parser:
 
         equal = tokens.pop(0)
 
-        dlog("UNIMPLEMENTED")
-        exit(1)
+        expr = self.parseExpression()
 
-        # expr = self.parseExpression()
-        # assert expr != None
-        # expr = cast(AstNode, expr)
+        dlog(expr)
 
-        # # dlog(f"EXPR: {expr}")
+        semicolon = self.parseSemicolon()
 
-        # if isinstance(expr, ParseError):
-        #     if expr == "Reached End of File!":
-        #         assert isinstance(equal, Token)
-        #         self.syntax_error(f"Expected ; but reached EOF", equal)
-
-        # semicolon = tokens.pop(0)
-        # if semicolon.typ != TokenType.SEMICOLON:
-        #     fatal("We don't support Statements with more than one expressions yet!")
-
-        # return AstNodeStatement(var_name_ast.token, var_name_ast, var_type_ast, expr)
+        return AstNodeStatement(var_name_ast.token, var_name_ast, colon_ast, equal, expr)
 
     def parseSemicolon(self) -> Token:
         if len(self.tokens) <= 0: raise ParseEOF(TokenType.SEMICOLON)
