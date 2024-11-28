@@ -542,17 +542,21 @@ class Parser:
         except ParseUnexpectedType:
             pass
 
+        # Didn't have :
         if colon_ast == None:
-            semicolon = self.parseSemicolon()
-            return AstNodeStatement(var_name_ast.token, var_name_ast, None, None)
+            # Have =
+            equal = self.parseEqual()
+            if equal == None:
+                # Only a <name>; statement
+                semicolon = self.parseSemicolon()
+                return AstNodeStatement(var_name_ast.token, var_name_ast, None, None, None)
+            else:
+                return AstNodeStatement(var_name_ast.token, var_name_ast, None, equal, None)
 
         dlog(var_name_ast)
         dlog(colon_ast)
 
-        if len(self.tokens) <= 0: raise ParseEOF(TokenType.EQUAL)
-        if tokens[0].typ != TokenType.EQUAL: raise ParseUnexpectedType(TokenType.EQUAL, tokens[0])
-
-        equal = tokens.pop(0)
+        equal = self.parseEqual()
 
         expr = self.parseExpression()
 
@@ -561,6 +565,13 @@ class Parser:
         semicolon = self.parseSemicolon()
 
         return AstNodeStatement(var_name_ast.token, var_name_ast, colon_ast, equal, expr)
+
+    def parseEqual(self) -> Token | None:
+        if len(self.tokens) <= 0: raise ParseEOF(TokenType.EQUAL, TokenType.SEMICOLON)
+        if self.tokens[0].typ != TokenType.EQUAL:
+            return None
+            # raise ParseUnexpectedType(TokenType.EQUAL, self.tokens[0])
+        return self.tokens.pop(0)
 
     def parseSemicolon(self) -> Token:
         if len(self.tokens) <= 0: raise ParseEOF(TokenType.SEMICOLON)

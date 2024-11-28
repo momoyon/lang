@@ -1,1 +1,4 @@
-msg: string = 1;
+msg != 0;
+msg: string = "test";
+msg = string;
+// msg: string = "Hello, World";
