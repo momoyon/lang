@@ -1,4 +1,1 @@
-msg != 0;
-msg: string = "test";
-msg = string;
-// msg: string = "Hello, World";
+int a = 0;

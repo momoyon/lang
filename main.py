@@ -125,6 +125,9 @@ class Token:
     def __str__(self):
         return f"Token ({token_type_as_str_map[self.typ]}, '{self.lexeme}', {self.loc})"
 
+    def __repr__(self):
+        return self.__str__()
+
 class Lexer:
     def __init__(self, filename: str):
         try:
@@ -709,6 +712,8 @@ def main():
     lexer = Lexer(filename)
     # Lexical Analysis
     tokens = lexer.lex()
+
+    print(tokens)
 
     # TODO: Parse
     parser = Parser(tokens)
