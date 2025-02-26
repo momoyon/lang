@@ -32,10 +32,101 @@ typedef struct {
     const char *filename;
 } Lexer;
 
+typedef enum {
+   TK_IDENT,
+   TK_STRING,
+
+   TK_LEFT_PAREN,
+   TK_RIGHT_PAREN,
+   TK_MINUS,
+   TK_RETURNER,
+   TK_LEFT_BRACE,
+   TK_RIGHT_BRACE,
+   TK_PLUS,
+   TK_DIVIDE,
+   TK_MULTIPLY,
+   TK_MODULUS,
+   TK_EQUAL,
+   TK_NOT,
+   TK_NOT_EQUAL,
+   TK_EQUAL_EQUAL,
+   TK_GT,
+   TK_LT,
+   TK_GTE,
+   TK_LTE,
+   TK_COMMA,
+   TK_COLON,
+   TK_SEMICOLON,
+   TK_DOT,
+   TK_HASH,
+   TK_LEFT_SQUARE_BRACE,
+   TK_RIGHT_SQUARE_BRACE,
+
+   TK_INT,
+   TK_FLOAT,
+
+   TK_BINARY_AND,
+   TK_BINARY_NOT,
+   TK_BINARY_OR,
+   TK_LOGICAL_AND,
+   TK_LOGICAL_OR,
+
+   TK_COUNT,
+} Token_type;
+
+const char *token_type_as_str(Token_type t) {
+    switch (t) {
+        case TK_IDENT: return "IDENT";
+        case TK_STRING: return "STRING";
+        case TK_LEFT_PAREN: return "LEFT_PAREN";
+        case TK_RIGHT_PAREN: return "RIGHT_PAREN";
+        case TK_MINUS: return "MINUS";
+        case TK_RETURNER: return "RETURNER";
+        case TK_LEFT_BRACE: return "LEFT_BRACE";
+        case TK_RIGHT_BRACE: return "RIGHT_BRACE";
+        case TK_PLUS: return "PLUS";
+        case TK_DIVIDE: return "DIVIDE";
+        case TK_MULTIPLY: return "MULTIPLY";
+        case TK_MODULUS: return "MODULUS";
+        case TK_EQUAL: return "EQUAL";
+        case TK_NOT: return "NOT";
+        case TK_NOT_EQUAL: return "NOT_EQUAL";
+        case TK_EQUAL_EQUAL: return "EQUAL_EQUAL";
+        case TK_GT: return "GT";
+        case TK_LT: return "LT";
+        case TK_GTE: return "GTE";
+        case TK_LTE: return "LTE";
+        case TK_COMMA: return "COMMA";
+        case TK_COLON: return "COLON";
+        case TK_SEMICOLON: return "SEMICOLON";
+        case TK_DOT: return "DOT";
+        case TK_HASH: return "HASH";
+        case TK_LEFT_SQUARE_BRACE: return "LEFT_SQUARE_BRACE";
+        case TK_RIGHT_SQUARE_BRACE: return "RIGHT_SQUARE_BRACE";
+        case TK_INT: return "INT";
+        case TK_FLOAT: return "FLOAT";
+        case TK_BINARY_AND: return "BINARY_AND";
+        case TK_BINARY_NOT: return "BINARY_NOT";
+        case TK_BINARY_OR: return "BINARY_OR";
+        case TK_LOGICAL_AND: return "LOGICAL_AND";
+        case TK_LOGICAL_OR: return "LOGICAL_OR";
+        case TK_COUNT:
+        default: {
+            ASSERT(false, "UNREACHABLE");
+        }
+    }
+}
+
 typedef struct {
     String_view lexeme;
     Location loc;
+    Token_type type;
 } Token;
+
+void print_token(FILE *f, Token t) {
+    print_loc(f, t.loc);
+    fprintf(f, " [%s] '"SV_FMT"'", token_type_as_str(t.type), SV_ARG(t.lexeme));
+}
 
 typedef struct {
     Token *items;
@@ -119,7 +210,6 @@ void left_trim(Lexer *l) {
 }
 
 bool next_token(Lexer *l, Token *t_out) {
-    (void)t_out;
     left_trim(l);
 
     if (eof(l)) return false;
@@ -131,17 +221,13 @@ bool next_token(Lexer *l, Token *t_out) {
         Location ident_loc = {0};
         consume_ident(l, &ident_sv, &ident_loc);
 
-        print_loc(stdout, ident_loc);
-        info("Got ident '"SV_FMT"'", SV_ARG(ident_sv));
         t_out->lexeme = ident_sv;
         t_out->loc    = ident_loc;
+        t_out->type   = TK_IDENT;
+        print_token(stdout, *t_out);
+        putc('\n', stdout);
         return true;
     }
-
-    /*while (isspace(current_char(l))) {*/
-    /*    consume_char(l);*/
-    /*}*/
-    /*ch = current_char(l);*/
 
     switch (ch) {
         case '"': {
