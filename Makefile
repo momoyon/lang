@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -Wextra -ggdb -I./include
+CFLAGS=-Wall -Wextra -ggdb -I./include -fsanitize=address
 LDFLAGS=-L./lib
 LIBS=
 
