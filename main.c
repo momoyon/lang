@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <ctype.h>
 
 #define COMMONLIB_IMPLEMENTATION
 #define COMMONLIB_REMOVE_PREFIX
@@ -12,8 +13,19 @@ void usage(const char *program) {
 }
 
 typedef struct {
-    const char *src;
-    size_t      src_len;
+    const char *filename;
+    int line;
+    int col;
+} Location;
+
+void print_loc(FILE *f, Location *loc) {
+    ASSERT(loc != NULL, "Bro you passed a NULL...");
+    fprintf(f, "%s:%d:%d", loc->filename, loc->line, loc->col);
+}
+
+typedef struct {
+    // NOTE: src gets data from a heap allocated string!!!
+    String_view src;
     size_t cur;
     size_t bol; // Beginning of Line
     size_t line;
@@ -38,8 +50,7 @@ Lexer make_lexer(const char *filename) {
         exit(1);
     }
     Lexer l = {
-        .src = buf,
-        .src_len = strlen(buf),
+        .src = sv_from_cstr(buf),
         .cur = 0,
         .bol = 0,
         .line = 1,
@@ -50,18 +61,23 @@ Lexer make_lexer(const char *filename) {
 }
 
 bool eof(Lexer *l) {
-    return l->cur >= l->src_len;
+    return l->cur >= l->src.count;
 }
 
 char current_char(Lexer *l) {
     ASSERT(!eof(l), "Trying to get char after EOF");
-    return l->src[l->cur];
+    return l->src.data[l->cur];
 }
 
 char consume_char(Lexer *l) {
     char ch = current_char(l);
     l->cur += 1;
     return ch;
+}
+
+void consume_ident(Lexer *l, String_view *ident_sv_out, Location *loc_out) {
+    // Identifiers can start with [a-z][A-Z]_ and contain [0-9] after the first char
+    ASSERT(isalpha(current_char(l)) || current_char(l) == '_', "Called consume_identifier() at the wrong character!");
 }
 
 void left_trim(Lexer *l) {
@@ -76,13 +92,26 @@ void left_trim(Lexer *l) {
 }
 
 bool next_token(Lexer *l, Token *t_out) {
+    (void)t_out;
     left_trim(l);
 
     if (eof(l)) return false;
 
     char ch = current_char(l);
 
+    if (isalpha(ch) || ch == '_') {
+        String_view ident_sv = {0};
+        Location ident_loc = {0};
+        consume_ident(l, &ident_sv, &ident_loc);
+    }
+
     switch (ch) {
+        case '"': {
+        } break;
+        default: {
+            error("Unhandled char '%c'", ch);
+            ASSERT(false, "UNREACHABLE!");
+        }
     }
 
     /*info("ch: '%c'", ch);*/

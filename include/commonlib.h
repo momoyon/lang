@@ -46,6 +46,38 @@
 
 #define shift_args c_shift_args
 
+#define SV_FMT c_SV_FMT
+#define SV_ARG c_SV_ARG
+
+#define SV c_SV
+
+#define sv_print_dumb c_sv_print_dumb
+#define sv_from_cstr c_sv_from_cstr
+#define sv_lpop c_sv_lpop
+#define sv_lpop_until_predicate c_sv_lpop_until_predicate
+#define sv_rpop_until_predicate c_sv_rpop_until_predicate
+#define sv_lpop_until_char c_sv_lpop_until_char
+#define sv_rpop_until_char c_sv_rpop_until_char
+#define sv_lremove c_sv_lremove
+#define sv_rremove c_sv_rremove
+#define sv_lremove_until_char c_sv_lremove_until_char
+#define sv_rremove_until_char c_sv_rremove_until_char
+#define sv_lremove_until_char_after c_sv_lremove_until_char_after
+#define sv_rremove_until_char_after c_sv_rremove_until_char_after
+#define sv_ltrim c_sv_ltrim
+#define sv_rtrim c_sv_rtrim
+#define sv_trim c_sv_trim
+#define sv_to_cstr c_sv_to_cstr
+#define sv_to_int c_sv_to_int
+#define sv_to_uint64 c_sv_to_uint64
+#define sv_to_uint8_hex c_sv_to_uint8_hex
+#define sv_to_ptr c_sv_to_ptr
+#define sv_to_float c_sv_to_float
+#define sv_contains_char c_sv_contains_char
+#define sv_is_hex_numbers c_sv_is_hex_numbers
+#define sv_equals c_sv_equals
+
+
 #endif // COMMONLIB_REMOVE_PREFIX
 
 // typedefs
