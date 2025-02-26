@@ -18,9 +18,9 @@ typedef struct {
     int col;
 } Location;
 
-void print_loc(FILE *f, Location *loc) {
-    ASSERT(loc != NULL, "Bro you passed a NULL...");
-    fprintf(f, "%s:%d:%d", loc->filename, loc->line, loc->col);
+void print_loc(FILE *f, Location loc) {
+    /*ASSERT(loc != NULL, "Bro you passed a NULL...");*/
+    fprintf(f, "%s:%d:%d", loc.filename, loc.line, loc.col);
 }
 
 typedef struct {
@@ -33,7 +33,8 @@ typedef struct {
 } Lexer;
 
 typedef struct {
-    const char *lexeme;
+    String_view lexeme;
+    Location loc;
 } Token;
 
 typedef struct {
@@ -64,6 +65,10 @@ bool eof(Lexer *l) {
     return l->cur >= l->src.count;
 }
 
+int col(Lexer *l) {
+    return l->cur - l->bol;
+}
+
 char current_char(Lexer *l) {
     ASSERT(!eof(l), "Trying to get char after EOF");
     return l->src.data[l->cur];
@@ -75,9 +80,27 @@ char consume_char(Lexer *l) {
     return ch;
 }
 
+int ident_predicate(int ch) {
+    return !(isalpha(ch) || ch == '_');
+}
+
 void consume_ident(Lexer *l, String_view *ident_sv_out, Location *loc_out) {
     // Identifiers can start with [a-z][A-Z]_ and contain [0-9] after the first char
     ASSERT(isalpha(current_char(l)) || current_char(l) == '_', "Called consume_identifier() at the wrong character!");
+    // NOTE: Since sv operations modify the sv
+    String_view src_copy = {
+        .data = l->src.data + l->cur,
+        .count = l->src.count - l->cur,
+    };
+
+    *ident_sv_out = sv_lpop_until_predicate(&src_copy, ident_predicate);
+
+    loc_out->filename = l->filename;
+    loc_out->line     = l->line;
+    loc_out->col      = col(l);
+
+    // Advance by the len of ident
+    l->cur += ident_sv_out->count;
 }
 
 void left_trim(Lexer *l) {
@@ -103,10 +126,25 @@ bool next_token(Lexer *l, Token *t_out) {
         String_view ident_sv = {0};
         Location ident_loc = {0};
         consume_ident(l, &ident_sv, &ident_loc);
+
+        print_loc(stdout, ident_loc);
+        info("Got ident '"SV_FMT"'", SV_ARG(ident_sv));
+        t_out->lexeme = ident_sv;
+        t_out->loc    = ident_loc;
+        return true;
     }
+
+    /*while (isspace(current_char(l))) {*/
+    /*    consume_char(l);*/
+    /*}*/
+    /*ch = current_char(l);*/
 
     switch (ch) {
         case '"': {
+        } break;
+        // NOTE: Sanity check
+        case ' ': {
+            consume_char(l);
         } break;
         default: {
             error("Unhandled char '%c'", ch);
@@ -116,7 +154,7 @@ bool next_token(Lexer *l, Token *t_out) {
 
     /*info("ch: '%c'", ch);*/
 
-    return true;
+    return false;
 }
 
 Tokens lex(Lexer *l) {
