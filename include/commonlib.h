@@ -9,18 +9,13 @@
 #include <ctype.h>
 #include <assert.h>
 
-// Memory allocation
-#define C_MALLOC malloc
-#define C_FREE free
-#define C_REALLOC realloc
-#define C_MEMCPY memcpy
-
 // Remove Prefix
 #ifdef COMMONLIB_REMOVE_PREFIX
 #define ASSERT c_ASSERT
 #define ARRAY_LEN c_ARRAY_LEN
 
 #define da_append c_da_append
+#define da_free c_da_free
 #define DYNAMIC_ARRAY_INITIAL_CAPACITY c_DYNAMIC_ARRAY_INITIAL_CAPACITY
 // #define c_DYNAMIC_ARRAY_INITIAL_CAPACITY
 
@@ -79,6 +74,21 @@
 
 
 #endif // COMMONLIB_REMOVE_PREFIX
+
+// Memory allocation
+#ifndef C_MALLOC
+#define C_MALLOC malloc
+#endif
+#ifndef C_FREE
+#define C_FREE free
+#endif
+#ifndef C_REALLOC
+#define C_REALLOC realloc
+#endif
+#ifndef C_MEMCPY
+#define C_MEMCPY memcpy
+#endif
+
 
 // typedefs
 typedef unsigned int uint;
@@ -164,6 +174,7 @@ typedef struct c_Arena c_Arena;
 	} while (0)
 
 #define c_da_pop_front(da) (c_ASSERT(da.count > 0, "Array is empty"), da.count--, *da.items++)
+#define c_da_free(da) C_FREE(da.items)
 
 //
 // OS

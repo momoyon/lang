@@ -61,6 +61,10 @@ Lexer make_lexer(const char *filename) {
     return l;
 }
 
+void free_lexer(Lexer *l) {
+    free(l->src.data);
+}
+
 bool eof(Lexer *l) {
     return l->cur >= l->src.count;
 }
@@ -180,8 +184,12 @@ int main(int argc, char **argv) {
 
     Lexer l = make_lexer(filename);
 
-    lex(&l);
+    Tokens tokens = lex(&l);
 
     info("OK");
+
+    free_lexer(&l);
+
+    da_free(tokens);
     return 0;
 }
