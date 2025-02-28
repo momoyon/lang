@@ -23,6 +23,12 @@ void print_loc(FILE *f, Location loc) {
     fprintf(f, "%s:%d:%d", loc.filename, loc.line, loc.col);
 }
 
+#define compiler_error(loc, fmt, ...) do { \
+        print_loc(stderr, loc);\
+        putc(' ', stderr);\
+        error(fmt, ##__VA_ARGS__);\
+    } while (0)
+
 typedef struct {
     // NOTE: src gets data from a heap allocated string!!!
     String_view src;
@@ -33,50 +39,53 @@ typedef struct {
 } Lexer;
 
 typedef enum {
-   TK_IDENT,
-   TK_STRING,
+    TK_IDENT,
+    TK_KEYWORD,
 
-   TK_LEFT_PAREN,
-   TK_RIGHT_PAREN,
-   TK_MINUS,
-   TK_RETURNER,
-   TK_LEFT_BRACE,
-   TK_RIGHT_BRACE,
-   TK_PLUS,
-   TK_DIVIDE,
-   TK_MULTIPLY,
-   TK_MODULUS,
-   TK_EQUAL,
-   TK_NOT,
-   TK_NOT_EQUAL,
-   TK_EQUAL_EQUAL,
-   TK_GT,
-   TK_LT,
-   TK_GTE,
-   TK_LTE,
-   TK_COMMA,
-   TK_COLON,
-   TK_SEMICOLON,
-   TK_DOT,
-   TK_HASH,
-   TK_LEFT_SQUARE_BRACE,
-   TK_RIGHT_SQUARE_BRACE,
+    TK_STRING,
 
-   TK_INT,
-   TK_FLOAT,
+    TK_LEFT_PAREN,
+    TK_RIGHT_PAREN,
+    TK_MINUS,
+    TK_RETURNER,
+    TK_LEFT_BRACE,
+    TK_RIGHT_BRACE,
+    TK_PLUS,
+    TK_DIVIDE,
+    TK_MULTIPLY,
+    TK_MODULUS,
+    TK_EQUAL,
+    TK_NOT,
+    TK_NOT_EQUAL,
+    TK_EQUAL_EQUAL,
+    TK_GT,
+    TK_LT,
+    TK_GTE,
+    TK_LTE,
+    TK_COMMA,
+    TK_COLON,
+    TK_SEMICOLON,
+    TK_DOT,
+    TK_HASH,
+    TK_LEFT_SQUARE_BRACE,
+    TK_RIGHT_SQUARE_BRACE,
 
-   TK_BINARY_AND,
-   TK_BINARY_NOT,
-   TK_BINARY_OR,
-   TK_LOGICAL_AND,
-   TK_LOGICAL_OR,
+    TK_INT,
+    TK_FLOAT,
 
-   TK_COUNT,
+    TK_BINARY_AND,
+    TK_BINARY_NOT,
+    TK_BINARY_OR,
+    TK_LOGICAL_AND,
+    TK_LOGICAL_OR,
+
+    TK_COUNT,
 } Token_type;
 
 const char *token_type_as_str(Token_type t) {
     switch (t) {
         case TK_IDENT: return "IDENT";
+        case TK_KEYWORD: return "KEYWORD";
         case TK_STRING: return "STRING";
         case TK_LEFT_PAREN: return "LEFT_PAREN";
         case TK_RIGHT_PAREN: return "RIGHT_PAREN";
@@ -115,6 +124,49 @@ const char *token_type_as_str(Token_type t) {
             ASSERT(false, "UNREACHABLE");
         }
     }
+}
+
+const char *keywords[] = {
+    "int",
+    "int8",
+    "int16",
+    "int32",
+    "int64",
+
+    "uint",
+    "uint8",
+    "uint16",
+    "uint32",
+    "uint64",
+
+    "float",
+    "float32",
+    "float64",
+    "char",
+    "string",
+    "bool",
+
+    "if",
+    "else",
+
+    "for",
+    "while",
+
+    "fun",
+
+    "enum",
+    "struct",
+    "union",
+
+    // Yes include will be part of the language, not part of a preprocessor
+    "include"
+};
+
+bool is_keyword(String_view ident) {
+    for (size_t i = 0; i < ARRAY_LEN(keywords); ++i) {
+        if (sv_equals(ident, SV(keywords[i]))) return true;
+    }
+    return false;
 }
 
 typedef struct {
@@ -156,6 +208,14 @@ void free_lexer(Lexer *l) {
     free(l->src.data);
 }
 
+String_view get_src_copy(Lexer *l) {
+    String_view src_copy = {
+        .data = l->src.data + l->cur,
+        .count = l->src.count - l->cur,
+    };
+    return src_copy;
+}
+
 bool eof(Lexer *l) {
     return l->cur >= l->src.count;
 }
@@ -183,11 +243,7 @@ void consume_ident(Lexer *l, String_view *ident_sv_out, Location *loc_out) {
     // Identifiers can start with [a-z][A-Z]_ and contain [0-9] after the first char
     ASSERT(isalpha(current_char(l)) || current_char(l) == '_', "Called consume_identifier() at the wrong character!");
     // NOTE: Since sv operations modify the sv
-    String_view src_copy = {
-        .data = l->src.data + l->cur,
-        .count = l->src.count - l->cur,
-    };
-
+    String_view src_copy = get_src_copy(l);
     *ident_sv_out = sv_lpop_until_predicate(&src_copy, ident_predicate);
 
     loc_out->filename = l->filename;
@@ -196,6 +252,45 @@ void consume_ident(Lexer *l, String_view *ident_sv_out, Location *loc_out) {
 
     // Advance by the len of ident
     l->cur += ident_sv_out->count;
+}
+
+void consume_string(Lexer *l, String_view *string_sv_out, Location *loc_out) {
+    ASSERT(current_char(l) == '"', "We except '\"' to be the current_char here...");
+
+    // Eat "
+    consume_char(l);
+    String_view src_copy = get_src_copy(l);
+
+    *string_sv_out = sv_lpop_until_char(&src_copy, '"');
+
+    loc_out->filename = l->filename;
+    loc_out->line     = l->line;
+    loc_out->col      = col(l);
+
+    // Advance by the len of sv
+    l->cur += string_sv_out->count;
+
+    if (eof(l)) {
+        compiler_error(*loc_out, "Unterminated string!"); 
+        exit(1);
+    }
+
+    // Eat "
+    consume_char(l);
+}
+
+void consume_single_char(Lexer *l, String_view *sv_out, Location *loc_out) {
+
+    String_view src_copy = get_src_copy(l);
+
+    *sv_out = sv_lpop(&src_copy, 1);
+
+    loc_out->filename = l->filename;
+    loc_out->line     = l->line;
+    loc_out->col      = col(l);
+
+    // Advance by the len of sv
+    l->cur += sv_out->count;
 }
 
 void left_trim(Lexer *l) {
@@ -223,7 +318,7 @@ bool next_token(Lexer *l, Token *t_out) {
 
         t_out->lexeme = ident_sv;
         t_out->loc    = ident_loc;
-        t_out->type   = TK_IDENT;
+        t_out->type   = (is_keyword(ident_sv) ? TK_KEYWORD : TK_IDENT);
         print_token(stdout, *t_out);
         putc('\n', stdout);
         return true;
@@ -231,6 +326,32 @@ bool next_token(Lexer *l, Token *t_out) {
 
     switch (ch) {
         case '"': {
+            String_view string_sv = {0};
+            Location string_loc = {0};
+            consume_string(l, &string_sv, &string_loc);
+
+            t_out->lexeme = string_sv;
+            t_out->loc    = string_loc;
+            t_out->type   = TK_STRING;
+            print_token(stdout, *t_out);
+            putc('\n', stdout);
+
+            return true;
+        } break;
+        case ':': {
+            String_view sv = {0};
+            Location loc = {0};
+
+            consume_single_char(l, &sv, &loc);
+
+            t_out->lexeme = sv;
+            t_out->loc    = loc;
+            t_out->type   = TK_COLON;
+            print_token(stdout, *t_out);
+            putc('\n', stdout);
+
+            return true;
+
         } break;
         // NOTE: Sanity check
         case ' ': {
