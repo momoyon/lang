@@ -256,9 +256,9 @@ typedef struct {
 } c_String_view;
 
 #define c_SV_FMT "%.*s"
-#define c_SV_ARG(sv) (int)sv.count, sv.data
+#define c_SV_ARG(sv) (int)(sv).count, (sv).data
 
-#define c_SV(cstr) (c_String_view){.data = cstr, strlen(cstr)}
+#define c_SV(cstr) (c_String_view){.data = (char*)cstr, strlen(cstr)}
 
 void c_sv_print_dumb(c_String_view sv);
 c_String_view c_sv_from_cstr(const char* cstr); // Actually just use SV(cstr) macro...
