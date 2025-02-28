@@ -50,6 +50,7 @@
 #define sv_from_cstr c_sv_from_cstr
 #define sv_lpop c_sv_lpop
 #define sv_lpop_until_predicate c_sv_lpop_until_predicate
+#define sv_lpop_until_string c_sv_lpop_until_string
 #define sv_rpop_until_predicate c_sv_rpop_until_predicate
 #define sv_lpop_until_char c_sv_lpop_until_char
 #define sv_rpop_until_char c_sv_rpop_until_char
@@ -264,6 +265,7 @@ void c_sv_print_dumb(c_String_view sv);
 c_String_view c_sv_from_cstr(const char* cstr); // Actually just use SV(cstr) macro...
 c_String_view c_sv_lpop(c_String_view* sv, uint32 n);
 c_String_view c_sv_lpop_until_predicate(c_String_view* sv, int(*predicate)(int));
+c_String_view c_sv_lpop_until_string(c_String_view* sv, const char *string);
 c_String_view c_sv_rpop_until_predicate(c_String_view* sv, int(*predicate)(int));
 c_String_view c_sv_lpop_until_char(c_String_view* sv, char ch);
 c_String_view c_sv_rpop_until_char(c_String_view* sv, char ch);
@@ -482,6 +484,27 @@ c_String_view c_sv_lpop_until_predicate(c_String_view* sv, int(*predicate)(int))
 
     return (c_String_view){
         .data = sv->data - (sv->data - old_sv_data),
+        .count = (sv->data - old_sv_data),
+    };
+}
+
+c_String_view c_sv_lpop_until_string(c_String_view* sv, const char *string) {
+    size_t string_len = strlen(string);
+
+    char *old_sv_data = sv->data;
+
+    while (sv->count > string_len) {
+        bool matched = true;
+        for (size_t i = 0; i < string_len; ++i) {
+            if (sv->data[i] != string[i]) matched = false;
+        }
+        if (matched) break;
+        sv->data++;
+        sv->count--;
+    }
+
+    return (c_String_view) {
+        .data = old_sv_data,
         .count = (sv->data - old_sv_data),
     };
 }

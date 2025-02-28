@@ -42,18 +42,29 @@ typedef enum {
     TK_IDENT,
     TK_KEYWORD,
 
+    TK_COMMENT,
+    TK_MULTILINE_COMMENT,
+
     TK_STRING,
 
     TK_LEFT_PAREN,
     TK_RIGHT_PAREN,
     TK_MINUS,
+    TK_MINUS_MINUS,
+    TK_MINUS_EQUAL,
+    TK_PLUS,
+    TK_PLUS_PLUS,
+    TK_PLUS_EQUAL,
     TK_RETURNER,
     TK_LEFT_BRACE,
     TK_RIGHT_BRACE,
-    TK_PLUS,
     TK_DIVIDE,
+    TK_DIVIDE_EQUAL,
     TK_MULTIPLY,
+    TK_MULTIPLY_EQUAL,
     TK_MODULUS,
+    TK_MODULUS_EQUAL,
+    TK_POWER,
     TK_EQUAL,
     TK_NOT,
     TK_NOT_EQUAL,
@@ -73,9 +84,12 @@ typedef enum {
     TK_INT,
     TK_FLOAT,
 
-    TK_BINARY_AND,
-    TK_BINARY_NOT,
-    TK_BINARY_OR,
+    TK_BITWISE_AND,
+    TK_BITWISE_AND_EQUAL,
+    TK_BITWISE_NOT,
+    TK_BITWISE_NOT_EQUAL,
+    TK_BITWISE_OR,
+    TK_BITWISE_OR_EQUAL,
     TK_LOGICAL_AND,
     TK_LOGICAL_OR,
 
@@ -86,17 +100,27 @@ const char *token_type_as_str(Token_type t) {
     switch (t) {
         case TK_IDENT: return "IDENT";
         case TK_KEYWORD: return "KEYWORD";
+        case TK_COMMENT: return "COMMENT";
+        case TK_MULTILINE_COMMENT: return "MULTILINE_COMMENT";
         case TK_STRING: return "STRING";
         case TK_LEFT_PAREN: return "LEFT_PAREN";
         case TK_RIGHT_PAREN: return "RIGHT_PAREN";
         case TK_MINUS: return "MINUS";
+        case TK_MINUS_MINUS: return "MINUS_MINUS";
+        case TK_MINUS_EQUAL: return "MINUS_EQUAL";
+        case TK_PLUS: return "PLUS";
+        case TK_PLUS_PLUS: return "PLUS_PLUS";
+        case TK_PLUS_EQUAL: return "PLUS_EQUAL";
         case TK_RETURNER: return "RETURNER";
         case TK_LEFT_BRACE: return "LEFT_BRACE";
         case TK_RIGHT_BRACE: return "RIGHT_BRACE";
-        case TK_PLUS: return "PLUS";
         case TK_DIVIDE: return "DIVIDE";
+        case TK_DIVIDE_EQUAL: return "DIVIDE_EQUAL";
         case TK_MULTIPLY: return "MULTIPLY";
+        case TK_MULTIPLY_EQUAL: return "MULTIPLY_EQUAL";
         case TK_MODULUS: return "MODULUS";
+        case TK_MODULUS_EQUAL: return "MODULUS_EQUAL";
+        case TK_POWER: return "POWER";
         case TK_EQUAL: return "EQUAL";
         case TK_NOT: return "NOT";
         case TK_NOT_EQUAL: return "NOT_EQUAL";
@@ -114,9 +138,12 @@ const char *token_type_as_str(Token_type t) {
         case TK_RIGHT_SQUARE_BRACE: return "RIGHT_SQUARE_BRACE";
         case TK_INT: return "INT";
         case TK_FLOAT: return "FLOAT";
-        case TK_BINARY_AND: return "BINARY_AND";
-        case TK_BINARY_NOT: return "BINARY_NOT";
-        case TK_BINARY_OR: return "BINARY_OR";
+        case TK_BITWISE_AND: return "BITWISE_AND";
+        case TK_BITWISE_AND_EQUAL: return "BITWISE_AND_EQUAL";
+        case TK_BITWISE_NOT: return "BITWISE_NOT";
+        case TK_BITWISE_NOT_EQUAL: return "BITWISE_NOT_EQUAL";
+        case TK_BITWISE_OR: return "BITWISE_OR";
+        case TK_BITWISE_OR_EQUAL: return "BITWISE_OR_EQUAL";
         case TK_LOGICAL_AND: return "LOGICAL_AND";
         case TK_LOGICAL_OR: return "LOGICAL_OR";
         case TK_COUNT:
@@ -160,6 +187,13 @@ const char *keywords[] = {
 
     // Yes include will be part of the language, not part of a preprocessor
     "include"
+
+    "return",
+    "continue",
+    "switch",
+    "break",
+    "case",
+    "default",
 };
 
 bool is_keyword(String_view ident) {
@@ -167,6 +201,21 @@ bool is_keyword(String_view ident) {
         if (sv_equals(ident, SV(keywords[i]))) return true;
     }
     return false;
+}
+
+// TODO: Should be differentiate hex, octal and binary here too?
+Token_type number_token_type(String_view number) {
+    if (sv_contains_char(number, '.')) {
+        return TK_FLOAT;
+    }
+
+    return TK_INT;
+}
+
+// NOTE: We assume only multiline comments contain newlines
+Token_type comment_token_type(String_view comment) {
+    if (sv_contains_char(comment, '\n')) return TK_MULTILINE_COMMENT;
+    return TK_COMMENT;
 }
 
 typedef struct {
@@ -229,14 +278,24 @@ char current_char(Lexer *l) {
     return l->src.data[l->cur];
 }
 
+// NOTE: returns 0 if next char is after EOF
+char next_char(Lexer *l) {
+    if (l->cur+1 >= l->src.count) return 0;
+    return l->src.data[l->cur+1];
+}
+
 char consume_char(Lexer *l) {
     char ch = current_char(l);
     l->cur += 1;
     return ch;
 }
 
-int ident_predicate(int ch) {
+int not_ident_predicate(int ch) {
     return !(isalpha(ch) || ch == '_');
+}
+
+int not_number_predicate(int ch) {
+    return !isdigit(ch);
 }
 
 void consume_ident(Lexer *l, String_view *ident_sv_out, Location *loc_out) {
@@ -244,7 +303,7 @@ void consume_ident(Lexer *l, String_view *ident_sv_out, Location *loc_out) {
     ASSERT(isalpha(current_char(l)) || current_char(l) == '_', "Called consume_identifier() at the wrong character!");
     // NOTE: Since sv operations modify the sv
     String_view src_copy = get_src_copy(l);
-    *ident_sv_out = sv_lpop_until_predicate(&src_copy, ident_predicate);
+    *ident_sv_out = sv_lpop_until_predicate(&src_copy, not_ident_predicate);
 
     loc_out->filename = l->filename;
     loc_out->line     = l->line;
@@ -293,6 +352,93 @@ void consume_single_char(Lexer *l, String_view *sv_out, Location *loc_out) {
     l->cur += sv_out->count;
 }
 
+void consume_number(Lexer *l, String_view *sv_out, Location *loc_out) {
+    ASSERT(isdigit(current_char(l)), "We expect a number bro...");
+
+    String_view src_copy = get_src_copy(l);
+
+    *sv_out = sv_lpop_until_predicate(&src_copy, not_number_predicate);
+
+    loc_out->filename = l->filename;
+    loc_out->line     = l->line;
+    loc_out->col      = col(l);
+
+    if (src_copy.data[0] == '.') {
+        String_view dot_sv = sv_lpop(&src_copy, 1);
+
+        /*info("dot_sv: '"SV_FMT"'", SV_ARG(dot_sv));*/
+
+        String_view float_sv = sv_lpop_until_predicate(&src_copy, not_number_predicate);
+
+        /*info("float_sv: '"SV_FMT"'", SV_ARG(float_sv));*/
+
+        // NOTE: We can do this because dot_sv and float_sv is right after sv_out!
+        sv_out->count += dot_sv.count + float_sv.count;
+    }
+    
+    // Advance by the len of sv
+    l->cur += sv_out->count;
+}
+
+void consume_comment(Lexer *l, String_view *sv_out, Location *loc_out) {
+    ASSERT(current_char(l) == '/', "We expect a comment to start with '/'...");
+
+    // 0 means its after EOF
+    char next = next_char(l);
+    consume_char(l);
+
+    switch (next) {
+        case 0:
+        case '\n': {
+            Location loc = {
+                .filename = l->filename,
+                .line = l->line,
+                .col = col(l),
+            };
+            compiler_error(loc, "Unterminated comment!");
+            exit(1);
+        } break;
+        case '/': {
+            // Eat /
+            consume_char(l);
+
+            String_view src_copy = get_src_copy(l);
+
+            *sv_out = sv_lpop_until_char(&src_copy, '\n');
+
+            loc_out->filename = l->filename;
+            loc_out->line     = l->line;
+            loc_out->col      = col(l);
+
+            // Advance by the len of sv
+            l->cur += sv_out->count;
+
+        } break;
+        case '*': {
+            // Eat *
+            consume_char(l);
+
+            String_view src_copy = get_src_copy(l);
+
+            *sv_out = sv_lpop_until_string(&src_copy, "*/");
+
+            loc_out->filename = l->filename;
+            loc_out->line     = l->line;
+            loc_out->col      = col(l);
+
+            // Eat */
+            consume_char(l);
+            consume_char(l);
+
+            // Advance by the len of sv
+            l->cur += sv_out->count;
+        } break;
+        default: {
+            ASSERT(false, "This shouldnt happen; if it did, you fucked up");
+        } break;
+    }
+}
+
 void left_trim(Lexer *l) {
     while (!eof(l) && isspace(current_char(l))) {
         // TODO: Care about window's \r\n....
@@ -303,6 +449,24 @@ void left_trim(Lexer *l) {
         consume_char(l);
     }
 }
+
+#define LEX_N_CHAR_TOKEN(token_type, lexeme_len) \
+    t_out->lexeme = (String_view) {\
+        .data = &(l->src.data[l->cur]),\
+        .count = lexeme_len,\
+    };\
+    t_out->type = token_type;\
+    t_out->loc = (Location) {\
+        .filename = l->filename,\
+        .line = l->line,\
+        .col = col(l),\
+    };\
+    print_token(stdout, *t_out);\
+    putc('\n', stdout);\
+    for (int i = 0; i < lexeme_len; ++i) {\
+        consume_char(l);\
+    }\
+    return true
 
 bool next_token(Lexer *l, Token *t_out) {
     left_trim(l);
@@ -324,7 +488,49 @@ bool next_token(Lexer *l, Token *t_out) {
         return true;
     }
 
+    if (isdigit(ch)) {
+        String_view number_sv = {0};
+        Location number_loc = {0};
+
+        consume_number(l, &number_sv, &number_loc);
+
+        t_out->lexeme = number_sv;
+        t_out->loc    = number_loc;
+        t_out->type   = number_token_type(number_sv);
+        print_token(stdout, *t_out);
+        putc('\n', stdout);
+        return true;
+    }
+
     switch (ch) {
+        case '/': {
+            // / could be // /**/ or /=
+
+            char next = next_char(l);
+
+            switch (next) {
+                case '*': 
+                case '/': {
+                    String_view comment_sv = {0};
+                    Location comment_loc = {0};
+
+                    consume_comment(l, &comment_sv, &comment_loc);
+
+                    t_out->lexeme = comment_sv;
+                    t_out->loc    = comment_loc;
+                    t_out->type   = comment_token_type(comment_sv);
+                    print_token(stdout, *t_out);
+                    putc('\n', stdout);
+
+                    return true;
+                } break;
+                case '=': {
+                    LEX_N_CHAR_TOKEN(TK_DIVIDE_EQUAL, 2);
+                } break;
+            }
+
+            LEX_N_CHAR_TOKEN(TK_DIVIDE, 1);
+        } break;
         case '"': {
             String_view string_sv = {0};
             Location string_loc = {0};
@@ -339,19 +545,109 @@ bool next_token(Lexer *l, Token *t_out) {
             return true;
         } break;
         case ':': {
-            String_view sv = {0};
-            Location loc = {0};
+            LEX_N_CHAR_TOKEN(TK_COLON, 1);
+        } break;
+        case '=': {
+            LEX_N_CHAR_TOKEN(TK_EQUAL, 1);
+        } break;
+        case ';': {
+            LEX_N_CHAR_TOKEN(TK_SEMICOLON, 1);
+        } break;
+        case '#': {
+            LEX_N_CHAR_TOKEN(TK_HASH, 1);
+        } break;
+        case '<': {
+            LEX_N_CHAR_TOKEN(TK_LT, 1);
+        } break;
+        case '>': {
+            LEX_N_CHAR_TOKEN(TK_GT, 1);
+        } break;
+        case '(': {
+            LEX_N_CHAR_TOKEN(TK_LEFT_PAREN, 1);
+        } break;
+        case ')': {
+            LEX_N_CHAR_TOKEN(TK_RIGHT_PAREN, 1);
+        } break;
+        case '{': {
+            LEX_N_CHAR_TOKEN(TK_LEFT_BRACE, 1);
+        } break;
+        case '}': {
+            LEX_N_CHAR_TOKEN(TK_RIGHT_BRACE, 1);
+        } break;
+        case '-': {
+            // - could be --, -= or ->
+            char next = next_char(l);
 
-            consume_single_char(l, &sv, &loc);
+            switch (next) {
+                case '-': {
+                    LEX_N_CHAR_TOKEN(TK_MINUS_MINUS, 2);
+                } break;
+                case '=': {
+                    LEX_N_CHAR_TOKEN(TK_MINUS_EQUAL, 2);
+                } break;
+                case '>': {
+                    LEX_N_CHAR_TOKEN(TK_RETURNER, 2);
+                } break;
+            }
 
-            t_out->lexeme = sv;
-            t_out->loc    = loc;
-            t_out->type   = TK_COLON;
-            print_token(stdout, *t_out);
-            putc('\n', stdout);
+            LEX_N_CHAR_TOKEN(TK_MINUS, 1);
+        } break;
+        case '+': {
+            // + could be ++ or +=
+            char next = next_char(l);
 
-            return true;
+            switch (next) {
+                case '+': {
+                    LEX_N_CHAR_TOKEN(TK_PLUS_PLUS, 2);
+                } break;
+                case '=': {
+                    LEX_N_CHAR_TOKEN(TK_PLUS_EQUAL, 2);
+                } break;
+            }
 
+            LEX_N_CHAR_TOKEN(TK_PLUS, 1);
+        } break;
+        case '*': {
+            // * could be ** or *=
+            char next = next_char(l);
+
+            switch (next) {
+                case '*': {
+                    LEX_N_CHAR_TOKEN(TK_POWER, 2);
+                } break;
+                case '=': {
+                    LEX_N_CHAR_TOKEN(TK_MULTIPLY_EQUAL, 2);
+                } break;
+            }
+
+            LEX_N_CHAR_TOKEN(TK_MULTIPLY, 1);
+        } break;
+        case '%': {
+            // % could be %=
+            char next = next_char(l);
+
+            switch (next) {
+                case '=': {
+                    LEX_N_CHAR_TOKEN(TK_MODULUS_EQUAL, 2);
+                } break;
+            }
+
+            LEX_N_CHAR_TOKEN(TK_MODULUS, 1);
+        } break;
+        case '&': {
+            // & could be && or &=
+            char next = next_char(l);
+
+            switch (next) {
+                case '&': {
+                    LEX_N_CHAR_TOKEN(TK_LOGICAL_AND, 2);
+                } break;
+                case '=': {
+                    LEX_N_CHAR_TOKEN(TK_BITWISE_AND_EQUAL, 2);
+                } break;
+            }
+
+            LEX_N_CHAR_TOKEN(TK_BITWISE_AND, 1);
         } break;
         // NOTE: Sanity check
         case ' ': {
