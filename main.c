@@ -674,16 +674,38 @@ Tokens lex(Lexer *l) {
     return tokens;
 }
 
+
+typedef struct {
+    const char **items;
+    size_t count;
+    size_t capacity;
+} Flags;
+
 int main(int argc, char **argv) {
     const char *program = shift_args(argv, argc);
 
-    if (argc <= 0) {
-        error("Please provide a filename!");
-        usage(program);
-        return 1;
+    Flags flags = {0};
+
+    const char *filename = NULL;
+    while (argc > 0) {
+        const char *arg = shift_args(argv, argc);
+
+        if (*arg == '-' || *arg == '/') {
+            char prefix = *arg;
+            const char *flag = arg + 1;
+
+            da_append(flags, flag);
+        } else {
+            filename = arg;
+        }
     }
 
-    const char *filename = shift_args(argv, argc);
+    if (filename == NULL) {
+        error("Please provide a filename!");
+        usage(program);
+        da_free(flags);
+        return 1;
+    }
 
     Lexer l = make_lexer(filename);
 
@@ -694,5 +716,7 @@ int main(int argc, char **argv) {
     free_lexer(&l);
 
     da_free(tokens);
+
+    da_free(flags);
     return 0;
 }
