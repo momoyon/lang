@@ -13,6 +13,10 @@ class Test:
     expected_stderr = ''
     expected_returncode = -1
 
+    build_expected_stdout = ''
+    build_expected_stderr = ''
+    build_expected_returncode = -1
+
     def __init__(self, name):
         self.name = name
 
@@ -34,6 +38,14 @@ class Test:
         else:
             self.expected_returncode = int(self.expected_returncode)
 
+        self.build_expected_stdout = read_or_create_expected_file("build.out")
+        self.build_expected_stderr = read_or_create_expected_file("build.err")
+        self.build_expected_returncode = read_or_create_expected_file("build.code")
+        if self.build_expected_returncode == '':
+            self.build_expected_returncode = -1
+        else:
+            self.build_expected_returncode = int(self.build_expected_returncode)
+
         # if self.expected_stdout: print(f"{self.name}.out.expected: {self.expected_stdout}")
         # if self.expected_stderr: print(f"{self.name}.err.expected: {self.expected_stderr}")
     def save_expected(self):
@@ -46,6 +58,10 @@ class Test:
         write_expected("err", self.expected_stderr)
         write_expected("code", str(self.expected_returncode))
 
+        write_expected("build.out", self.build_expected_stdout)
+        write_expected("build.err", self.build_expected_stderr)
+        write_expected("build.code", str(self.build_expected_returncode))
+
 
 def usage(program: str):
     print(f"Usage: {program} <subcmd> [flags]")
@@ -54,10 +70,11 @@ def usage(program: str):
 def hhelp():
     print('''
     Subcommands:
-        help    - Prints this help message.
-        build   - Builds all the tests.
-        run     - Runs all the tests.
-        record  - Records the expected behaviour of all the tests.
+        help            - Prints this help message.
+        build           - Builds all the tests.
+        run             - Runs all the tests.
+        record          - Records the expected behaviour of all the tests.
+        record_build    - Records the expected build behaviour of all the tests.
 
     Flags:
         -h      - Same as the help subcommand.
@@ -140,11 +157,15 @@ def main():
                 current_test_id += 1
                 test = tests[test_name]
 
+                if test.build_expected_returncode == -1:
+                    print(f"[WARNING] Test doesn't have any expected build returncode!")
+                    print(f"[WARNING] Please record the expected build behaviour of the test using the 'record_build' subcommand!")
+                    print(f"[SKIPPING]...")
+                    continue
+
                 cmd = [COMPILER, f"{test_name}{SUFFIX}"]
                 vlog(verbose_output, f"[CMD] {cmd}")
-                res = subprocess.run(cmd,
-                                     capture_output = True,
-                                     text = True)
+                res = subprocess.run(cmd, capture_output = True, text = True)
                 if res.returncode != 0:
                     print("[FAILED] ", end='')
                     if res.stderr:
@@ -203,16 +224,45 @@ def main():
                 print(f"+ Recording expected behaviour for '{test_name}'...")
                 test = tests[test_name]
 
+                res = subprocess.run([f"./{test_name}"], capture_output = True, text = True)
+
+                print(f"stdout: {res.stdout}")
+                print(f"stderr: {res.stderr}")
+                print(f"returncode: {res.returncode}")
+
                 prompt_msg = "Record current behaviour as the expected one? [y/N]"
                 ans = input(prompt_msg)
 
                 if ans.lower() == "y":
-                    res = subprocess.run([f"./{test_name}"],
-                                         capture_output = True,
-                                         text = True)
                     tests[test_name].expected_stdout = res.stdout
                     tests[test_name].expected_stderr = res.stderr
                     tests[test_name].expected_returncode = res.returncode
+                    tests[test_name].save_expected()
+                    print('[SUCCESS] Recorded expected behaviour')
+                else:
+                    print('[SKIP]')
+        elif subcmd == "record_build":
+            print(f'----- [RECORD_BUILD] -----')
+            for test_name in tests:
+                print(f"+ Recording expected build behaviour for '{test_name}'...")
+                test = tests[test_name]
+
+                cmd = [COMPILER, f"{test_name}{SUFFIX}"]
+                vlog(verbose_output, f"[CMD] {cmd}")
+                res = subprocess.run(cmd, capture_output = True, text = True)
+
+                print(f"stdout: {res.stdout}")
+                print(f"stderr: {res.stderr}")
+                print(f"returncode: {res.returncode}")
+
+                prompt_msg = "Record current build behaviour as the expected one? [y/N]"
+                ans = input(prompt_msg)
+
+                if ans.lower() == "y":
+
+                    tests[test_name].build_expected_stdout = res.stdout
+                    tests[test_name].build_expected_stderr = res.stderr
+                    tests[test_name].build_expected_returncode = res.returncode
                     tests[test_name].save_expected()
                     print('[SUCCESS] Recorded expected behaviour')
                 else:

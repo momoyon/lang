@@ -1,0 +1,3 @@
+strings.momo:1:1 [STRING] 'This is a string!'
+strings.momo:4:9 [STRING] 'This too is a string!'
+[INFO] OK

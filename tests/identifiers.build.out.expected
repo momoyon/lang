@@ -1,0 +1,11 @@
+identifiers.momo:1:0 [IDENT] 'foo'
+identifiers.momo:2:1 [IDENT] 'bar'
+identifiers.momo:2:5 [IDENT] 'baz'
+identifiers.momo:8:0 [IDENT] 'A'
+identifiers.momo:8:2 [IDENT] 'B'
+identifiers.momo:8:4 [IDENT] 'C'
+identifiers.momo:10:0 [IDENT] '_D'
+identifiers.momo:10:3 [IDENT] 'eE'
+identifiers.momo:10:6 [IDENT] '_F'
+identifiers.momo:10:9 [IDENT] '_G'
+[INFO] OK
