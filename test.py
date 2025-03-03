@@ -84,7 +84,7 @@ def hhelp():
 
     Flags:
         -h      - Same as the help subcommand.
-        -v      - Verbose output.
+        -V      - Verbose output.
         -x      - Stop on first error.
           ''')
 
@@ -124,7 +124,7 @@ def main():
         if flag == 'h':
             hhelp()
             exit(0)
-        elif flag == 'v':
+        elif flag == 'V':
             verbose_output = True
         elif flag == 'x':
             stop_on_error = True
