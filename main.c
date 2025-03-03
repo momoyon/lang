@@ -582,6 +582,12 @@ bool next_token(Lexer *l, Token *t_out) {
         case '}': {
             LEX_N_CHAR_TOKEN(TK_RIGHT_BRACE, 1);
         } break;
+        case '[': {
+            LEX_N_CHAR_TOKEN(TK_LEFT_SQUARE_BRACE, 1);
+        } break;
+        case ']': {
+            LEX_N_CHAR_TOKEN(TK_RIGHT_SQUARE_BRACE, 1);
+        } break;
         case '-': {
             // - could be --, -= or ->
             char next = next_char(l);
@@ -820,8 +826,6 @@ int main(int argc, char **argv) {
     Lexer l = make_lexer(filename);
 
     Tokens tokens = lex(&l);
-
-    info("OK");
 
     free_lexer(&l);
 

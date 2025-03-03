@@ -30,4 +30,3 @@ operators.momo:33:0 [LT] '<'
 operators.momo:34:0 [GT] '>'
 operators.momo:35:0 [LTE] '<='
 operators.momo:36:0 [GTE] '>='
-[INFO] OK
