@@ -8,6 +8,9 @@ COMPILER="/home/momoyon/Programming/python/lang/lang"
 TESTS_DIR="./tests/"
 SUFFIX=".momo"
 
+
+# TODO: Use Colored logging
+
 class Test:
     expected_stdout = ''
     expected_stderr = ''
@@ -181,6 +184,16 @@ def main():
                     if stop_on_error: exit(1)
                     else: continue
                 else:
+                    if res.stdout != test.build_expected_stdout:
+                        print('[FAILED]', file=sys.stderr)
+                        print(f"build_Expected: >>>{test.build_expected_stdout}>>>")
+                        print(f"But Got: >>>{res.stdout}>>>")
+                        if stop_on_error: exit(1)
+                    if res.stderr != test.build_expected_stderr:
+                        print('[FAILED]', file=sys.stderr)
+                        print(f"build_Expected: >>>{test.build_expected_stderr}>>>")
+                        print(f"But Got: >>>{res.stderr}>>>")
+                        if stop_on_error: exit(1)
                     passing_tests_count += 1
                     print("[PASS] ", end='')
                     o = False

@@ -103,6 +103,8 @@ typedef enum {
     TK_BITWISE_OR_EQUAL,
     TK_BITWISE_XOR,
     TK_BITWISE_XOR_EQUAL,
+    TK_BITWISE_SHIFT_LEFT,
+    TK_BITWISE_SHIFT_RIGHT,
     TK_LOGICAL_AND,
     TK_LOGICAL_OR,
 
@@ -158,6 +160,8 @@ const char *token_type_as_str(Token_type t) {
         case TK_BITWISE_OR_EQUAL: return "BITWISE_OR_EQUAL";
         case TK_BITWISE_XOR: return "BITWISE_XOR";
         case TK_BITWISE_XOR_EQUAL: return "BITWISE_XOR_EQUAL";
+        case TK_BITWISE_SHIFT_LEFT: return "BITWISE_SHIFT_LEFT";
+        case TK_BITWISE_SHIFT_RIGHT: return "BITWISE_SHIFT_RIGHT";
         case TK_LOGICAL_AND: return "LOGICAL_AND";
         case TK_LOGICAL_OR: return "LOGICAL_OR";
         case TK_COUNT:
@@ -706,6 +710,36 @@ bool next_token(Lexer *l, Token *t_out) {
             }
 
             LEX_N_CHAR_TOKEN(TK_EQUAL, 1);
+        } break;
+        case '<': {
+            // < could be << or <=
+            char next = next_char(l);
+
+            switch (next) {
+                case '<': {
+                    LEX_N_CHAR_TOKEN(TK_BITWISE_SHIFT_LEFT, 2);
+                } break;
+                case '=': {
+                    LEX_N_CHAR_TOKEN(TK_LTE, 2);
+                } break;
+            }
+
+            LEX_N_CHAR_TOKEN(TK_LT, 1);
+        } break;
+        case '>': {
+            // > could be >> or >=
+            char next = next_char(l);
+
+            switch (next) {
+                case '>': {
+                    LEX_N_CHAR_TOKEN(TK_BITWISE_SHIFT_RIGHT, 2);
+                } break;
+                case '=': {
+                    LEX_N_CHAR_TOKEN(TK_GTE, 2);
+                } break;
+            }
+
+            LEX_N_CHAR_TOKEN(TK_GT, 1);
         } break;
         // NOTE: Sanity check
         case ' ': {
