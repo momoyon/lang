@@ -315,6 +315,7 @@ int not_number_predicate(int ch) {
     return !isdigit(ch);
 }
 
+// TODO: Has a bug where 'int8' Gets parsed as 'int' and '8'
 void consume_ident(Lexer *l, String_view *ident_sv_out, Location *loc_out) {
     // Identifiers can start with [a-z][A-Z]_ and contain [0-9] after the first char
     ASSERT(isalpha(current_char(l)) || current_char(l) == '_', "Called consume_identifier() at the wrong character!");
