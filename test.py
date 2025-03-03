@@ -21,7 +21,7 @@ class Test:
         self.name = name
 
         def read_or_create_expected_file(name: str) -> str:
-            f = f"{self.name}.{name}.expected"
+            f = self.get_expected_filename(name)
             if not os.path.exists(f):
                 with open(f, "w") as file:
                     print(f"[INFO] Created empty {self.name}.{name}.expected")
@@ -50,7 +50,7 @@ class Test:
         # if self.expected_stderr: print(f"{self.name}.err.expected: {self.expected_stderr}")
     def save_expected(self):
         def write_expected(name: str, content: str):
-            f = f"{self.name}.{name}.expected"
+            f = self.get_expected_filename(name)
             with open(f, "w") as file:
                 file.write(content)
 
@@ -61,6 +61,12 @@ class Test:
         write_expected("build.out", self.build_expected_stdout)
         write_expected("build.err", self.build_expected_stderr)
         write_expected("build.code", str(self.build_expected_returncode))
+
+    def get_expected_filename(self, name):
+        if name not in [ "out", "err", "code", "build.out", "build.err", "build.code" ]:
+            raise Exception("Please pass a valid name")
+            
+        return f".{self.name}.{name}.expected"
 
 
 def usage(program: str):
@@ -188,6 +194,7 @@ def main():
 
                 print(f"Build {passing_tests_count}/{total_tests_count} tests")
         elif subcmd == "run":
+            assert False, "'run' Subcommand is not fully tested!"
             print(f'----- [RUN] -----')
             for test_name in tests:
                 print(f'+ Running {test_name} [{current_test_id+1}/{total_tests_count}]...')
@@ -219,6 +226,7 @@ def main():
 
             print(f"PASSED {passing_tests_count}/{total_tests_count}")
         elif subcmd == "record":
+            assert False, "'record' Subcommand is not fully tested!"
             print(f'----- [RECORD] -----')
             for test_name in tests:
                 print(f"+ Recording expected behaviour for '{test_name}'...")
@@ -259,7 +267,6 @@ def main():
                 ans = input(prompt_msg)
 
                 if ans.lower() == "y":
-
                     tests[test_name].build_expected_stdout = res.stdout
                     tests[test_name].build_expected_stderr = res.stderr
                     tests[test_name].build_expected_returncode = res.returncode
