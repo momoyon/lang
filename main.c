@@ -8,8 +8,19 @@
 #define error log_error
 #define info log_info
 
+#define COMPILER_VERSION "v0.0.1"
+
 void usage(const char *program) {
-    info("Usage: %s <file>", program);
+    info("Usage: %s [flag(s)] <file>", program);
+}
+
+void help(const char *program) {
+    usage(program);
+
+    info("");
+    info("Flags: ");
+    info("  -h      Prints this help message.");
+    info("  -v      Prints the version of the compiler.");
 }
 
 typedef struct {
@@ -66,6 +77,7 @@ typedef enum {
     TK_MODULUS_EQUAL,
     TK_POWER,
     TK_EQUAL,
+    // These three are logical
     TK_NOT,
     TK_NOT_EQUAL,
     TK_EQUAL_EQUAL,
@@ -87,9 +99,10 @@ typedef enum {
     TK_BITWISE_AND,
     TK_BITWISE_AND_EQUAL,
     TK_BITWISE_NOT,
-    TK_BITWISE_NOT_EQUAL,
     TK_BITWISE_OR,
     TK_BITWISE_OR_EQUAL,
+    TK_BITWISE_XOR,
+    TK_BITWISE_XOR_EQUAL,
     TK_LOGICAL_AND,
     TK_LOGICAL_OR,
 
@@ -141,9 +154,10 @@ const char *token_type_as_str(Token_type t) {
         case TK_BITWISE_AND: return "BITWISE_AND";
         case TK_BITWISE_AND_EQUAL: return "BITWISE_AND_EQUAL";
         case TK_BITWISE_NOT: return "BITWISE_NOT";
-        case TK_BITWISE_NOT_EQUAL: return "BITWISE_NOT_EQUAL";
         case TK_BITWISE_OR: return "BITWISE_OR";
         case TK_BITWISE_OR_EQUAL: return "BITWISE_OR_EQUAL";
+        case TK_BITWISE_XOR: return "BITWISE_XOR";
+        case TK_BITWISE_XOR_EQUAL: return "BITWISE_XOR_EQUAL";
         case TK_LOGICAL_AND: return "LOGICAL_AND";
         case TK_LOGICAL_OR: return "LOGICAL_OR";
         case TK_COUNT:
@@ -239,7 +253,6 @@ Lexer make_lexer(const char *filename) {
     bool ok = false;
     const char *buf = slurp_file(filename, &ok);
     if (!ok) {
-        error("Failed to open '%s'", filename);
         exit(1);
     }
     Lexer l = {
@@ -547,20 +560,11 @@ bool next_token(Lexer *l, Token *t_out) {
         case ':': {
             LEX_N_CHAR_TOKEN(TK_COLON, 1);
         } break;
-        case '=': {
-            LEX_N_CHAR_TOKEN(TK_EQUAL, 1);
-        } break;
         case ';': {
             LEX_N_CHAR_TOKEN(TK_SEMICOLON, 1);
         } break;
         case '#': {
             LEX_N_CHAR_TOKEN(TK_HASH, 1);
-        } break;
-        case '<': {
-            LEX_N_CHAR_TOKEN(TK_LT, 1);
-        } break;
-        case '>': {
-            LEX_N_CHAR_TOKEN(TK_GT, 1);
         } break;
         case '(': {
             LEX_N_CHAR_TOKEN(TK_LEFT_PAREN, 1);
@@ -649,6 +653,60 @@ bool next_token(Lexer *l, Token *t_out) {
 
             LEX_N_CHAR_TOKEN(TK_BITWISE_AND, 1);
         } break;
+        case '^': {
+            // ^ could be ^=
+            char next = next_char(l);
+
+            switch (next) {
+                case '=': {
+                    LEX_N_CHAR_TOKEN(TK_BITWISE_XOR_EQUAL, 2);
+                } break;
+            }
+
+            LEX_N_CHAR_TOKEN(TK_BITWISE_XOR, 1);
+        } break;
+        case '~': {
+            LEX_N_CHAR_TOKEN(TK_BITWISE_NOT, 1);
+        } break;
+        case '|': {
+            // | could be || or |=
+            char next = next_char(l);
+
+            switch (next) {
+                case '|': {
+                    LEX_N_CHAR_TOKEN(TK_LOGICAL_OR, 2);
+                } break;
+                case '=': {
+                    LEX_N_CHAR_TOKEN(TK_BITWISE_OR_EQUAL, 2);
+                } break;
+            }
+
+            LEX_N_CHAR_TOKEN(TK_BITWISE_OR, 1);
+        } break;
+        case '!': {
+            // ! could be !=
+            char next = next_char(l);
+
+            switch (next) {
+                case '=': {
+                    LEX_N_CHAR_TOKEN(TK_NOT_EQUAL, 2);
+                } break;
+            }
+
+            LEX_N_CHAR_TOKEN(TK_NOT, 1);
+        } break;
+        case '=': {
+            // = could be ==
+            char next = next_char(l);
+
+            switch (next) {
+                case '=': {
+                    LEX_N_CHAR_TOKEN(TK_EQUAL_EQUAL, 2);
+                } break;
+            }
+
+            LEX_N_CHAR_TOKEN(TK_EQUAL, 1);
+        } break;
         // NOTE: Sanity check
         case ' ': {
             consume_char(l);
@@ -674,7 +732,6 @@ Tokens lex(Lexer *l) {
     return tokens;
 }
 
-
 typedef struct {
     const char **items;
     size_t count;
@@ -691,12 +748,31 @@ int main(int argc, char **argv) {
         const char *arg = shift_args(argv, argc);
 
         if (*arg == '-' || *arg == '/') {
-            char prefix = *arg;
-            const char *flag = arg + 1;
+            const char *flag = arg; // Including the prefix
 
             da_append(flags, flag);
         } else {
             filename = arg;
+        }
+    }
+
+    // Parse flags
+    for (size_t i = 0; i < flags.count; ++i) {
+        const char *flag = flags.items[i];
+
+        char prefix = *flag;
+
+        flag += 1; // Remove prefix
+
+        if (strcmp(flag, "h") == 0) {
+            help(program);
+            exit(0);
+        } else if (strcmp(flag, "v") == 0) {
+            info("Compiler Version: "COMPILER_VERSION);
+            exit(0);
+        } else {
+            error("Invalid flag '%c%s'...", prefix, flag);
+            exit(1);
         }
     }
 

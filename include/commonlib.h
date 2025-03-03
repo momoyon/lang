@@ -331,42 +331,41 @@ bool c_os_file_exists(cstr filename) {
     result = ret_val;\
     goto defer
 
-// TODO: Refactor error messages
 const char *c_slurp_file(const char* filename, bool* success) {
     FILE* f = fopen(filename, "rb");
     char* result = NULL;
 
     if (f == NULL){
-        c_log_error("slurp_file::fopen(\"%s\", \"rb\") -> %s\n", filename, strerror(errno));
+        c_log_error("'%s': %s", filename, strerror(errno));
         defer(NULL);
     }
 
     if (fseek(f, 0, SEEK_END) < 0) {
-        c_log_error("slurp_file::fseek(%s, 0, SEEK_END) -> %s\n", filename, strerror(errno));
+        c_log_error("'%s': %s", filename, strerror(errno));
         defer(NULL);
     }
 
     size_t fsize = ftell(f);
 
     if (fsize == (size_t)-1){
-        c_log_error("slurp_file::ftell(%s) -> %s\n", filename, strerror(errno));
+        c_log_error("'%s': %s", filename, strerror(errno));
         defer(NULL);
     }
 
     result = C_MALLOC(sizeof(char)*(fsize+1));
 
     if (result == NULL){
-        c_log_error("slurp_file::malloc(%zu) -> %s\n", sizeof(char)*fsize, strerror(errno));
+        c_log_error("'%s': %s", filename, strerror(errno));
         defer(NULL);
     }
 
     if (fseek(f, 0, SEEK_SET) < 0) {
-        c_log_error("slurp_file::fseek(%s, 0, SEEK_SET) -> %s\n", filename, strerror(errno));
+        c_log_error("'%s': %s", filename, strerror(errno));
         defer(NULL);
     }
 
     if (fread((char*)result, sizeof(char), fsize, f) != fsize){
-        c_log_error("slurp_file::fread(result, %zu, 1, f) -> %s\n", fsize, strerror(errno));
+        c_log_error("'%s': %s", filename, strerror(errno));
         defer(NULL);
     }
 
