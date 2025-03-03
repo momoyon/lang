@@ -184,7 +184,7 @@ def main():
                     passing_tests_count += 1
                     print("[PASS] ", end='')
                     o = False
-                    if res.stdout:
+                    if verbose_output and res.stdout:
                         print(f"{res.stdout}")
                         o = True
                     if verbose_output and res.stderr:
