@@ -43,15 +43,6 @@ void print_loc(FILE *f, Location loc) {
         error(fmt, ##__VA_ARGS__);\
     } while (0)
 
-typedef struct {
-    // NOTE: src gets data from a heap allocated string!!!
-    String_view src;
-    size_t cur;
-    size_t bol; // Beginning of Line
-    size_t line;
-    const char *filename;
-} Lexer;
-
 typedef enum {
     TK_IDENT,
     TK_KEYWORD,
@@ -113,6 +104,31 @@ typedef enum {
 
     TK_COUNT,
 } Token_type;
+
+typedef struct {
+    String_view lexeme;
+    Location loc;
+    Token_type type;
+} Token;
+
+typedef struct {
+    Token *items;
+    size_t count;
+    size_t capacity;
+} Tokens;
+
+typedef struct {
+    // NOTE: src gets data from a heap allocated string!!!
+    String_view src;
+    size_t cur;
+    size_t bol; // Beginning of Line
+    size_t line;
+    const char *filename;
+} Lexer;
+
+typedef struct {
+    Tokens tokens;
+} Parser;
 
 const char *token_type_as_str(Token_type t) {
     switch (t) {
@@ -239,22 +255,10 @@ Token_type comment_token_type(String_view comment) {
     return TK_COMMENT;
 }
 
-typedef struct {
-    String_view lexeme;
-    Location loc;
-    Token_type type;
-} Token;
-
 void print_token(FILE *f, Token t) {
     print_loc(f, t.loc);
     fprintf(f, " [%s] '"SV_FMT"'", token_type_as_str(t.type), SV_ARG(t.lexeme));
 }
-
-typedef struct {
-    Token *items;
-    size_t count;
-    size_t capacity;
-} Tokens;
 
 Lexer make_lexer(const char *filename) {
     bool ok = false;
@@ -275,6 +279,43 @@ Lexer make_lexer(const char *filename) {
 
 void free_lexer(Lexer *l) {
     free(l->src.data);
+}
+
+Parser make_parser(Tokens tokens) {
+    return (Parser) {
+        .tokens = tokens,
+    };
+}
+
+void free_parser(Parser *p) {
+    da_free(p->tokens);
+}
+
+typedef struct Ast_Node Ast_Node;
+typedef struct Ast_Binop Ast_Binop;
+
+struct Ast_Binop {
+    Ast_Node *lhs;
+    Ast_Node *rhs;
+};
+
+struct Ast_Node {
+    Ast_Binop binop;
+
+    union {
+        uint u;
+        int i;
+        double f;
+        bool b;
+    } as;
+};
+
+void parse(Parser *p) {
+    info("tokens.count: %zu", p->tokens.count);
+    Token t = da_shift(p->tokens);
+
+    printf("[INFO] ");print_token(stdout, t);
+    info("tokens.count: %zu", p->tokens.count);
 }
 
 String_view get_src_copy(Lexer *l) {
@@ -852,10 +893,12 @@ int main(int argc, char **argv) {
 
     Tokens tokens = lex(&l);
 
+    Parser p = make_parser(tokens);
+
+    parse(&p);
+
+    free_parser(&p);
     free_lexer(&l);
-
-    da_free(tokens);
-
     da_free(flags);
     return 0;
 }
