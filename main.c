@@ -10,6 +10,8 @@
 
 #define COMPILER_VERSION "v0.0.2"
 
+static bool DEBUG_PRINT = false;
+
 void usage(const char *program) {
     info("Usage: %s [flag(s)] <file>", program);
 }
@@ -21,6 +23,7 @@ void help(const char *program) {
     info("Flags: ");
     info("  -h      Prints this help message.");
     info("  -v      Prints the version of the compiler.");
+    info("  -d      Enables debug printing.");
 }
 
 typedef struct {
@@ -488,8 +491,10 @@ void left_trim(Lexer *l) {
         .line = l->line,\
         .col = col(l),\
     };\
-    print_token(stdout, *t_out);\
-    putc('\n', stdout);\
+    if (DEBUG_PRINT) {\
+        print_token(stdout, *t_out);\
+        putc('\n', stdout);\
+    }\
     for (int i = 0; i < lexeme_len; ++i) {\
         consume_char(l);\
     }\
@@ -510,8 +515,10 @@ bool next_token(Lexer *l, Token *t_out) {
         t_out->lexeme = ident_sv;
         t_out->loc    = ident_loc;
         t_out->type   = (is_keyword(ident_sv) ? TK_KEYWORD : TK_IDENT);
-        print_token(stdout, *t_out);
-        putc('\n', stdout);
+        if (DEBUG_PRINT) {
+            print_token(stdout, *t_out);
+            putc('\n', stdout);
+        }
         return true;
     }
 
@@ -524,8 +531,10 @@ bool next_token(Lexer *l, Token *t_out) {
         t_out->lexeme = number_sv;
         t_out->loc    = number_loc;
         t_out->type   = number_token_type(number_sv);
-        print_token(stdout, *t_out);
-        putc('\n', stdout);
+        if (DEBUG_PRINT) {
+            print_token(stdout, *t_out);
+            putc('\n', stdout);
+        }
         return true;
     }
 
@@ -546,8 +555,10 @@ bool next_token(Lexer *l, Token *t_out) {
                     t_out->lexeme = comment_sv;
                     t_out->loc    = comment_loc;
                     t_out->type   = comment_token_type(comment_sv);
-                    print_token(stdout, *t_out);
-                    putc('\n', stdout);
+                    if (DEBUG_PRINT) {
+                        print_token(stdout, *t_out);
+                        putc('\n', stdout);
+                    }
 
                     return true;
                 } break;
@@ -566,8 +577,10 @@ bool next_token(Lexer *l, Token *t_out) {
             t_out->lexeme = string_sv;
             t_out->loc    = string_loc;
             t_out->type   = TK_STRING;
-            print_token(stdout, *t_out);
-            putc('\n', stdout);
+            if (DEBUG_PRINT) {
+                print_token(stdout, *t_out);
+                putc('\n', stdout);
+            }
 
             return true;
         } break;
@@ -820,6 +833,8 @@ int main(int argc, char **argv) {
         } else if (strcmp(flag, "v") == 0) {
             info("Compiler Version: "COMPILER_VERSION);
             exit(0);
+        } else if (strcmp(flag, "d") == 0) {
+            DEBUG_PRINT = true;
         } else {
             error("Invalid flag '%c%s'...", prefix, flag);
             exit(1);
