@@ -315,13 +315,23 @@ int not_number_predicate(int ch) {
     return !isdigit(ch);
 }
 
-// TODO: Has a bug where 'int8' Gets parsed as 'int' and '8'
+int not_number_or_ident_predicate(int ch) {
+    return !(isalpha(ch) || ch == '_' || isdigit(ch));
+}
+
 void consume_ident(Lexer *l, String_view *ident_sv_out, Location *loc_out) {
     // Identifiers can start with [a-z][A-Z]_ and contain [0-9] after the first char
     ASSERT(isalpha(current_char(l)) || current_char(l) == '_', "Called consume_identifier() at the wrong character!");
     // NOTE: Since sv operations modify the sv
     String_view src_copy = get_src_copy(l);
-    *ident_sv_out = sv_lpop_until_predicate(&src_copy, not_ident_predicate);
+    String_view first_char = sv_lpop(&src_copy, 1);
+    ident_sv_out->data = first_char.data;
+    ident_sv_out->count = first_char.count;
+    if (first_char.count && !not_ident_predicate(first_char.data[0])) {
+        String_view rest_of_the_ident = sv_lpop_until_predicate(&src_copy, not_number_or_ident_predicate);
+        ident_sv_out->count += rest_of_the_ident.count;
+    }
+
 
     loc_out->filename = l->filename;
     loc_out->line     = l->line;
