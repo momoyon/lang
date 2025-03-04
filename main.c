@@ -204,7 +204,7 @@ const char *keywords[] = {
     "union",
 
     // Yes include will be part of the language, not part of a preprocessor
-    "include"
+    "include",
 
     "return",
     "continue",
