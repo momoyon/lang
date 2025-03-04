@@ -8,7 +8,7 @@
 #define error log_error
 #define info log_info
 
-#define COMPILER_VERSION "v0.0.1"
+#define COMPILER_VERSION "v0.0.2"
 
 void usage(const char *program) {
     info("Usage: %s [flag(s)] <file>", program);
