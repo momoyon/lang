@@ -12,10 +12,12 @@ SUFFIX=".momo"
 # TODO: Use Colored logging
 
 class Test:
+    stdin = ''
     expected_stdout = ''
     expected_stderr = ''
     expected_returncode = -1
 
+    build_stdin = ''
     build_expected_stdout = ''
     build_expected_stderr = ''
     build_expected_returncode = -1
@@ -33,6 +35,7 @@ class Test:
                 with open(f, "r") as file:
                      return file.read()
 
+        self.stdin = read_or_create_expected_file("in")
         self.expected_stdout = read_or_create_expected_file("out")
         self.expected_stderr = read_or_create_expected_file("err")
         self.expected_returncode = read_or_create_expected_file("code")
@@ -41,6 +44,7 @@ class Test:
         else:
             self.expected_returncode = int(self.expected_returncode)
 
+        self.build_stdin = read_or_create_expected_file("build.in")
         self.build_expected_stdout = read_or_create_expected_file("build.out")
         self.build_expected_stderr = read_or_create_expected_file("build.err")
         self.build_expected_returncode = read_or_create_expected_file("build.code")
@@ -57,20 +61,28 @@ class Test:
             with open(f, "w") as file:
                 file.write(content)
 
+        write_expected("in", self.stdin)
         write_expected("out", self.expected_stdout)
         write_expected("err", self.expected_stderr)
         write_expected("code", str(self.expected_returncode))
 
+        write_expected("build.in", self.build_stdin)
         write_expected("build.out", self.build_expected_stdout)
         write_expected("build.err", self.build_expected_stderr)
         write_expected("build.code", str(self.build_expected_returncode))
 
     def get_expected_filename(self, name):
-        if name not in [ "out", "err", "code", "build.out", "build.err", "build.code" ]:
+        if name not in [ "in", "out", "err", "code", "build.in", "build.out", "build.err", "build.code" ]:
             raise Exception("Please pass a valid name")
             
         return f".{self.name}.{name}.expected"
 
+    def get_build_stdin_list(self):
+            build_input_array = self.build_stdin.split(sep=' ')
+            for i in range(len(build_input_array)-1, -1, -1):
+                if len(build_input_array[i]) <= 0:
+                    build_input_array.pop(i)
+            return build_input_array
 
 def usage(program: str):
     print(f"Usage: {program} <subcmd> [flags]")
@@ -170,9 +182,12 @@ def main():
                     print(f"[WARNING] Test doesn't have any expected build returncode!")
                     print(f"[WARNING] Please record the expected build behaviour of the test using the 'record_build' subcommand!")
                     print(f"[SKIPPING]...")
+                    if stop_on_error: exit(1)
                     continue
 
                 cmd = [COMPILER, f"{test_name}{SUFFIX}"]
+                build_stdin_list = test.get_build_stdin_list()
+                if len(build_stdin_list) > 0: cmd.extend(build_stdin_list)
                 vlog(verbose_output, f"[CMD] {cmd}")
                 res = subprocess.run(cmd, capture_output = True, text = True)
                 if res.returncode != 0:
@@ -268,7 +283,18 @@ def main():
                 print(f"+ Recording expected build behaviour for '{test_name}'...")
                 test = tests[test_name]
 
+                if len(test.build_stdin) > 0:
+                    print(f"[INFO] Test already has build_input '{test.build_stdin}'...")
+                    ans = input("Do you want to change the build_input? [y/N]")
+                    if ans.lower() == 'y':
+                        test.build_stdin = input("What is the input passed? ")
+                else:
+                    test.build_stdin = input("What is the input passed? ")
+
+
                 cmd = [COMPILER, f"{test_name}{SUFFIX}"]
+                build_stdin_list = test.get_build_stdin_list()
+                if len(build_stdin_list) > 0: cmd.extend(build_stdin_list)
                 vlog(verbose_output, f"[CMD] {cmd}")
                 res = subprocess.run(cmd, capture_output = True, text = True)
 
