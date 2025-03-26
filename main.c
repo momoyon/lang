@@ -127,7 +127,7 @@ typedef struct {
 } Lexer;
 
 typedef struct {
-    Tokens *tokens_ptr;
+    Tokens tokens;
 } Parser;
 
 const char *token_type_as_str(Token_type t) {
@@ -281,26 +281,22 @@ void free_lexer(Lexer *l) {
     free(l->src.data);
 }
 
-Parser make_parser(Tokens *tokens_ptr) {
+Parser make_parser(Tokens tokens) {
     return (Parser) {
-        .tokens_ptr = tokens_ptr,
+        .tokens = tokens,
     };
 }
 
 void free_parser(Parser *p) {
-    da_free(*p->tokens_ptr);
+    da_free(p->tokens);
 }
 
 typedef struct Ast_Node Ast_Node;
 typedef struct Ast_Binop Ast_Binop;
 
-struct Ast_Binop {
-    Ast_Node *lhs;
-    Ast_Node *rhs;
-};
-
 struct Ast_Node {
-    Ast_Binop binop;
+    Ast_Binop *binop;
+    Location loc;
 
     union {
         uint u;
@@ -310,12 +306,210 @@ struct Ast_Node {
     } as;
 };
 
-void parse(Parser *p) {
-    info("tokens.count: %zu", p->tokens_ptr->count);
-    Token t = da_shift(*p->tokens_ptr);
+struct Ast_Binop {
+    Ast_Node lhs;
+    Ast_Node rhs;
+};
 
-    printf("[INFO] ");print_token(stdout, t);
-    info("tokens.count: %zu", p->tokens_ptr->count);
+typedef struct {
+    Ast_Node *items;
+    size_t count;
+    size_t capacity;
+} Ast_Nodes;
+
+void print_ast_node(FILE *f, Ast_Node node) {
+    print_loc(f, node.loc);
+
+    fprintf(f, " ");
+    if (node.binop) {
+        fprintf(f, "BinOp.{ %u, %d, %f, %s }", node.binop->lhs.as.u, node.binop->lhs.as.i, node.binop->lhs.as.f, node.binop->lhs.as.b ? "true" : "false");
+        fprintf(f, " <OP> ");
+        fprintf(f, "{ %u, %d, %f, %s }", node.binop->rhs.as.u, node.binop->rhs.as.i, node.binop->rhs.as.f, node.binop->rhs.as.b ? "true" : "false");
+    } else {
+        fprintf(f, "{ %u, %d, %f, %s }", node.as.u, node.as.i, node.as.f, node.as.b ? "true" : "false");
+    }
+}
+
+void parse(Parser *p) {
+    // NOTE: So we don't loose the tokens ptr to free it.
+    Tokens tokens_copy = p->tokens;
+    if (DEBUG_PRINT) info("tokens.count: %zu", tokens_copy.count);
+
+    Ast_Nodes ast_nodes = {0};
+
+    Arena temp_arena = arena_make(0);
+
+    while (tokens_copy.count) {
+        Token t = da_shift(tokens_copy);
+
+        if (DEBUG_PRINT) { 
+            printf("[INFO] ");
+            print_token(stdout, t);
+            printf("\n");
+            info("tokens.count: %zu", tokens_copy.count);
+        }
+
+        switch (t.type) {
+            case TK_IDENT: {
+            } break;
+            case TK_KEYWORD: {
+            } break;
+
+            case TK_COMMENT: {
+            } break;
+            case TK_MULTILINE_COMMENT: {
+            } break;
+
+            case TK_STRING: {
+            } break;
+
+            case TK_LEFT_PAREN: {
+            } break;
+            case TK_RIGHT_PAREN: {
+            } break;
+            case TK_MINUS: {
+            } break;
+            case TK_MINUS_MINUS: {
+            } break;
+            case TK_MINUS_EQUAL: {
+            } break;
+            case TK_PLUS: {
+                // TODO: For now, we will allow '+' to be the first token because why not.
+                ASSERT(ast_nodes.count > 0, "Expected something before '+'");
+                Ast_Node ast = {0};
+                ast.binop = arena_alloc(&temp_arena, sizeof(Ast_Binop));
+                ast.binop->lhs = ast_nodes.items[ast_nodes.count-1];
+                ast.loc = t.loc;
+
+                if (tokens_copy.count <= 0) {
+                    compiler_error(t.loc, "Unterminated '+' Operation!");
+                }
+
+                Token next_token = da_shift(tokens_copy);
+
+                if (next_token.type != TK_INT) {
+                    compiler_error(t.loc, "Cannot add and '%s' and '%s'", token_type_as_str(t.type), token_type_as_str(next_token.type));
+                }
+
+                // NOTE: COPY-PASTED FROM parse.switch.TK_INT:
+                // TODO: Better way to check for error...
+                // For now we just assume the lexeme is an int; else there is a bug in lexing.
+                int value = sv_to_int(next_token.lexeme);
+                Ast_Node rhs_ast = {
+                    .as.i = value
+                };
+
+                rhs_ast.loc = next_token.loc;
+
+                ast.binop->rhs = rhs_ast;
+
+                da_append(ast_nodes, ast);
+                da_append(ast_nodes, rhs_ast);
+            } break;
+            case TK_PLUS_PLUS: {
+            } break;
+            case TK_PLUS_EQUAL: {
+            } break;
+            case TK_RETURNER: {
+            } break;
+            case TK_LEFT_BRACE: {
+            } break;
+            case TK_RIGHT_BRACE: {
+            } break;
+            case TK_DIVIDE: {
+            } break;
+            case TK_DIVIDE_EQUAL: {
+            } break;
+            case TK_MULTIPLY: {
+            } break;
+            case TK_MULTIPLY_EQUAL: {
+            } break;
+            case TK_MODULUS: {
+            } break;
+            case TK_MODULUS_EQUAL: {
+            } break;
+            case TK_POWER: {
+            } break;
+            case TK_EQUAL: {
+            } break;
+            case TK_NOT: {
+            } break;
+            case TK_NOT_EQUAL: {
+            } break;
+            case TK_EQUAL_EQUAL: {
+            } break;
+            case TK_GT: {
+            } break;
+            case TK_LT: {
+            } break;
+            case TK_GTE: {
+            } break;
+            case TK_LTE: {
+            } break;
+            case TK_COMMA: {
+            } break;
+            case TK_COLON: {
+            } break;
+            case TK_SEMICOLON: {
+                // NOTE: We dont need to do anything.
+            } break;
+            case TK_DOT: {
+            } break;
+            case TK_HASH: {
+            } break;
+            case TK_LEFT_SQUARE_BRACE: {
+            } break;
+            case TK_RIGHT_SQUARE_BRACE: {
+            } break;
+
+            case TK_INT: {
+                // TODO: Better way to check for error...
+                // For now we just assume the lexeme is an int; else there is a bug in lexing.
+                int value = sv_to_int(t.lexeme);
+                Ast_Node ast = {
+                    .as.i = value
+                };
+                ast.loc = t.loc;
+
+                da_append(ast_nodes, ast);
+            } break;
+            case TK_FLOAT: {
+            } break;
+
+            case TK_BITWISE_AND: {
+            } break;
+            case TK_BITWISE_AND_EQUAL: {
+            } break;
+            case TK_BITWISE_NOT: {
+            } break;
+            case TK_BITWISE_OR: {
+            } break;
+            case TK_BITWISE_OR_EQUAL: {
+            } break;
+            case TK_BITWISE_XOR: {
+            } break;
+            case TK_BITWISE_XOR_EQUAL: {
+            } break;
+            case TK_BITWISE_SHIFT_LEFT: {
+            } break;
+            case TK_BITWISE_SHIFT_RIGHT: {
+            } break;
+            case TK_LOGICAL_AND: {
+            } break;
+            case TK_LOGICAL_OR: {
+            } break;
+            case TK_COUNT:
+            default: ASSERT(false, "Unreachable!");
+        }
+    }
+
+    for (size_t i = 0; i < ast_nodes.count; ++i) {
+        printf("[INFO] "); print_ast_node(stdout, ast_nodes.items[i]); printf("\n");
+    }
+
+    da_free(ast_nodes);
+    arena_free(&temp_arena);
+
 }
 
 String_view get_src_copy(Lexer *l) {
@@ -893,7 +1087,9 @@ int main(int argc, char **argv) {
 
     Tokens tokens = lex(&l);
 
-    Parser p = make_parser(&tokens);
+    Parser p = make_parser(tokens);
+
+    parse(&p);
 
     free_parser(&p);
     free_lexer(&l);

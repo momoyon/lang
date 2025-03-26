@@ -31,12 +31,12 @@
 #define touch_file_if_doesnt_exist c_touch_file_if_doesnt_exist
 
 #define Arena c_Arena
-#define Arena_make c_Arena_make
-#define Arena_alloc c_Arena_alloc
-#define Arena_reset c_Arena_reset
-#define Arena_free c_Arena_free
-#define Arena_alloc_str c_Arena_alloc_str
-#define Arena_alloc_wstr c_Arena_alloc_wstr
+#define arena_make c_arena_make
+#define arena_alloc c_arena_alloc
+#define arena_reset c_arena_reset
+#define arena_free c_arena_free
+#define arena_alloc_str c_arena_alloc_str
+#define arena_alloc_wstr c_arena_alloc_wstr
 
 #define String_view c_String_view
 
@@ -229,13 +229,13 @@ struct c_Arena {
 };
 
 // pass size 0 to get ARENA_BUFF_INITIAL_SIZE
-c_Arena c_Arena_make(size_t size);
-void* c_Arena_alloc(c_Arena* a, size_t size);
-void c_Arena_reset(c_Arena* a);
-void c_Arena_free(c_Arena* a);
+c_Arena c_arena_make(size_t size);
+void* c_arena_alloc(c_Arena* a, size_t size);
+void c_arena_reset(c_Arena* a);
+void c_arena_free(c_Arena* a);
 
-#define c_Arena_alloc_str(a, fmt, ...)    c_Arena_alloc(&(a), sizeof(char)*stbsp_snprintf((a).ptr, (int)((a).buff_size - ((uint8*)(a).ptr - (uint8*)(a).buff)), (fmt), __VA_ARGS__)+1)
-#define c_Arena_alloc_wstr(a, fmt, ...) c_Arena_alloc(&a, sizeof(char)*wprintf(a.ptr, a.buff_size - ((uint8*)a.ptr - (uint8*)a.buff), (fmt), __VA_ARGS__)+1)
+#define c_arena_alloc_str(a, fmt, ...)    c_arena_alloc(&(a), sizeof(char)*stbsp_snprintf((a).ptr, (int)((a).buff_size - ((uint8*)(a).ptr - (uint8*)(a).buff)), (fmt), __VA_ARGS__)+1)
+#define c_arena_alloc_wstr(a, fmt, ...) c_arena_alloc(&a, sizeof(char)*wprintf(a.ptr, a.buff_size - ((uint8*)a.ptr - (uint8*)a.buff), (fmt), __VA_ARGS__)+1)
 
 //
 // String Builder
@@ -393,7 +393,7 @@ void c_touch_file_if_doesnt_exist(cstr filename) {
 
 // c_Arena
 
-c_Arena c_Arena_make(size_t size) {
+c_Arena c_arena_make(size_t size) {
     c_Arena res = {0};
     res.buff_size = size == 0 ? ARENA_BUFF_INITIAL_SIZE : size;
     res.buff = C_MALLOC(res.buff_size);
@@ -404,7 +404,7 @@ c_Arena c_Arena_make(size_t size) {
     return res;
 }
 
-void* c_Arena_alloc(c_Arena* a, size_t size) {
+void* c_arena_alloc(c_Arena* a, size_t size) {
     C_ASSERT(a->buff, "Bro pass an initialized arena!");
 
     void* res = a->ptr;
@@ -424,11 +424,11 @@ void* c_Arena_alloc(c_Arena* a, size_t size) {
     return res;
 }
 
-void c_Arena_reset(c_Arena* a) {
+void c_arena_reset(c_Arena* a) {
     a->ptr = a->buff;
 }
 
-void c_Arena_free(c_Arena* a) {
+void c_arena_free(c_Arena* a) {
     C_FREE(a->buff);
 }
 
