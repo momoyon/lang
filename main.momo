@@ -1,6 +1,1 @@
-#include <stdio>
-
-fun main(args: [string]) -> int {
-    printf("Hello, World\n");
-    return 0;
-}
+1 + 2;

@@ -127,7 +127,7 @@ typedef struct {
 } Lexer;
 
 typedef struct {
-    Tokens tokens;
+    Tokens *tokens_ptr;
 } Parser;
 
 const char *token_type_as_str(Token_type t) {
@@ -281,14 +281,14 @@ void free_lexer(Lexer *l) {
     free(l->src.data);
 }
 
-Parser make_parser(Tokens tokens) {
+Parser make_parser(Tokens *tokens_ptr) {
     return (Parser) {
-        .tokens = tokens,
+        .tokens_ptr = tokens_ptr,
     };
 }
 
 void free_parser(Parser *p) {
-    da_free(p->tokens);
+    da_free(*p->tokens_ptr);
 }
 
 typedef struct Ast_Node Ast_Node;
@@ -311,11 +311,11 @@ struct Ast_Node {
 };
 
 void parse(Parser *p) {
-    info("tokens.count: %zu", p->tokens.count);
-    Token t = da_shift(p->tokens);
+    info("tokens.count: %zu", p->tokens_ptr->count);
+    Token t = da_shift(*p->tokens_ptr);
 
     printf("[INFO] ");print_token(stdout, t);
-    info("tokens.count: %zu", p->tokens.count);
+    info("tokens.count: %zu", p->tokens_ptr->count);
 }
 
 String_view get_src_copy(Lexer *l) {
@@ -893,9 +893,7 @@ int main(int argc, char **argv) {
 
     Tokens tokens = lex(&l);
 
-    Parser p = make_parser(tokens);
-
-    parse(&p);
+    Parser p = make_parser(&tokens);
 
     free_parser(&p);
     free_lexer(&l);
