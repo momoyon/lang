@@ -11,8 +11,8 @@
 
 // Remove Prefix
 #ifdef COMMONLIB_REMOVE_PREFIX
-#define ASSERT c_ASSERT
-#define ARRAY_LEN c_ARRAY_LEN
+#define ASSERT C_ASSERT
+#define ARRAY_LEN C_ARRAY_LEN
 
 #define da_append c_da_append
 #define da_free c_da_free
@@ -114,14 +114,14 @@ typedef const wchar* wstr;
 
 
 // Macros
-#define c_ASSERT(condition, msg) do {\
+#define C_ASSERT(condition, msg) do {\
                 if (!(condition)) {\
                         fprintf(stderr, "%s:%d:0 [ASSERTION FAILED] %s: %s", __FILE__, __LINE__, #condition, msg);\
                         exit(1);\
                 }\
         } while (0)
 
-#define c_ARRAY_LEN(arr) (sizeof(arr) / sizeof(arr[0]))
+#define C_ARRAY_LEN(arr) (sizeof(arr) / sizeof(arr[0]))
 
 #define c_shift(xs, xsz) (assert(xsz > 0 && "Array is empty"), xsz--, *xs++)
 #define c_shift_args c_shift
@@ -170,12 +170,12 @@ typedef struct c_Arena c_Arena;
 		if ((da).count >= (da).capacity) {\
 			(da).capacity *= 2;\
                         (da).items = C_REALLOC((da).items, (da).capacity * sizeof(elm));\
-			c_ASSERT((da).items != NULL, "TODO: Log error instead of asserting");\
+			C_ASSERT((da).items != NULL, "TODO: Log error instead of asserting");\
 		}\
 		(da).items[(da).count++] = elm;\
 	} while (0)
 
-// NOTE: We cant do c_ASSERT() here because it aint one expression...
+// NOTE: We cant do C_ASSERT() here because it aint one expression...
 #define c_da_shift(da) (assert((da).count > 0 && "Array is empty"), (da).count--, *(da).items++)
 #define c_da_free(da) C_FREE((da).items)
 
@@ -308,19 +308,19 @@ bool c_sv_equals(c_String_view sv1, c_String_view sv2);
 #if defined(_WIN32) || defined(__CYGWIN__)
 void c_os_get_timedate(c_Arena* a) {
         (void)a;
-        c_ASSERT(false, "Unimplemented!");
+        C_ASSERT(false, "Unimplemented!");
 }
 
 bool c_os_file_exists(cstr filename) {
         (void) filename;
-        c_ASSERT(false, "Unimplemented!");
+        C_ASSERT(false, "Unimplemented!");
         return false;
 }
 
 #elif defined(__linux__)
 void c_os_get_timedate(c_Arena* a) {
         (void)a;
-        c_ASSERT(false, "Unimplemented!");
+        C_ASSERT(false, "Unimplemented!");
 }
 
 bool c_os_file_exists(cstr filename) {
@@ -399,13 +399,13 @@ c_Arena c_Arena_make(size_t size) {
     res.buff = C_MALLOC(res.buff_size);
     res.ptr = res.buff;
 
-    c_ASSERT(res.buff, "Malloc failed?");
+    C_ASSERT(res.buff, "Malloc failed?");
 
     return res;
 }
 
 void* c_Arena_alloc(c_Arena* a, size_t size) {
-    c_ASSERT(a->buff, "Bro pass an initialized arena!");
+    C_ASSERT(a->buff, "Bro pass an initialized arena!");
 
     void* res = a->ptr;
     a->ptr = (uint8*)a->ptr + size;
@@ -419,7 +419,7 @@ void* c_Arena_alloc(c_Arena* a, size_t size) {
         res = a->ptr;
         a->ptr = (uint8*)a->ptr + size;
     }
-    /* c_ASSERT((size_t)((uint8*)a->ptr - (uint8*)a->buff) <= a->buff_size); */
+    /* C_ASSERT((size_t)((uint8*)a->ptr - (uint8*)a->buff) <= a->buff_size); */
 
     return res;
 }
@@ -607,8 +607,12 @@ void c_sv_trim(c_String_view* sv){
 }
 
 char* c_sv_to_cstr(c_String_view sv){
-    char* res = (char*)calloc(1, sizeof(char)*sv.count);
+    char* res = (char*)malloc(sizeof(char)*(sv.count + 1));
+    if (res == NULL) {
+        C_ASSERT(false, "Buy more RAM bruh");
+    }
     C_MEMCPY(res, sv.data, sv.count);
+    res[sv.count] = '\0';
     return res;
 }
 
@@ -666,7 +670,7 @@ bool c_sv_is_hex_numbers(c_String_view sv) {
     bool found = false;
     for (size_t i = 0; i < sv.count; ++i) {
         char c = sv.data[i];
-        for (size_t j = 0; j < c_ARRAY_LEN(hex); ++j) {
+        for (size_t j = 0; j < C_ARRAY_LEN(hex); ++j) {
             if (hex[j] == c) {
 	found = true;
             }
