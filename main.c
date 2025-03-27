@@ -296,6 +296,7 @@ typedef struct Ast_Binop Ast_Binop;
 
 typedef enum {
 	AST_INT,
+	AST_FLOAT,
 	AST_ADD,
 	AST_COUNT
 } Ast_Node_Type;
@@ -303,6 +304,7 @@ typedef enum {
 const char *ast_type_as_str(const Ast_Node_Type t) {
 	switch (t) {
 		case AST_INT: return "INT";
+		case AST_FLOAT: return "FLOAT";
 		case AST_ADD: return "ADD";
 		case AST_COUNT:
 		default: ASSERT(false, "Unreachable!");
@@ -314,6 +316,8 @@ struct Ast_Node {
     Ast_Binop *binop;
     Location loc;
     Ast_Node_Type type;
+
+    Token token;
 
     union {
         uint u;
@@ -342,6 +346,9 @@ void print_ast_node(FILE *f, Ast_Node node) {
 	    case AST_INT: {
 		fprintf(f, "<%s>{%d}", ast_type_as_str(node.type), node.as.i);
 	    } break;
+	    case AST_FLOAT: {
+		fprintf(f, "<%s>{%f}", ast_type_as_str(node.type), node.as.f);
+	    } break;
 	    case AST_ADD: {
 		fprintf(f, "Binop.{%s} (", ast_type_as_str(node.type));
 		print_ast_node(f, node.binop->lhs);
@@ -352,6 +359,28 @@ void print_ast_node(FILE *f, Ast_Node node) {
 	    case AST_COUNT:
 	    default: ASSERT(false, "Unreachable!");
     }
+}
+
+bool parse_int(Token t, Ast_Node *ast_out) {
+	if (t.type != TK_INT) return false;
+	int value = sv_to_int(t.lexeme);
+	ast_out->as.i = value;
+	ast_out->loc = t.loc;
+	ast_out->type = AST_INT;
+	ast_out->token = t;
+
+	return true;
+}
+
+bool parse_float(Token t, Ast_Node *ast_out) {
+	if (t.type != TK_FLOAT) return false;
+	float value = sv_to_float(t.lexeme);
+	ast_out->as.f = value;
+	ast_out->loc = t.loc;
+	ast_out->type = AST_FLOAT;
+	ast_out->token = t;
+
+	return true;
 }
 
 void parse(Parser *p) {
@@ -405,6 +434,7 @@ void parse(Parser *p) {
                 ast.binop->lhs = ast_nodes.items[ast_nodes.count-1];
                 ast.loc = t.loc;
 		ast.type = AST_ADD;
+		ast.token = t;
 
                 if (tokens_copy.count <= 0) {
                     compiler_error(t.loc, "Unterminated '+' Operation!");
@@ -412,21 +442,14 @@ void parse(Parser *p) {
 
                 Token next_token = da_shift(tokens_copy);
 
-		// TODO: Allow addition of floats as well
-                if (next_token.type != TK_INT) {
-                    compiler_error(t.loc, "Cannot add and '%s' and '%s'", token_type_as_str(t.type), token_type_as_str(next_token.type));
-                }
-
-                // NOTE: COPY-PASTED FROM parse.switch.TK_INT:
-                // TODO: Better way to check for error...
-                // For now we just assume the lexeme is an int; else there is a bug in lexing.
-                int value = sv_to_int(next_token.lexeme);
-                Ast_Node rhs_ast = {
-                    .as.i = value
-                };
-
-                rhs_ast.loc = next_token.loc;
-		rhs_ast.type = AST_INT;
+				/*            if (next_token.type != TK_INT &&*/
+				/*next_token.type != TK_FLOAT) {*/
+				/*                compiler_error(t.loc, "Cannot add '%s' and '%s'", token_type_as_str(ast.binop->lhs.token.type), token_type_as_str(next_token.type));*/
+				/*            }*/
+		Ast_Node rhs_ast = {0};
+		if (!parse_int(next_token, &rhs_ast)) {
+			ASSERT((parse_float(next_token, &rhs_ast)), "This should never happen cuz of the check above");
+		}
 
                 ast.binop->rhs = rhs_ast;
 
@@ -490,18 +513,22 @@ void parse(Parser *p) {
             } break;
 
             case TK_INT: {
-                // TODO: Better way to check for error...
-                // For now we just assume the lexeme is an int; else there is a bug in lexing.
-                int value = sv_to_int(t.lexeme);
-                Ast_Node ast = {
-                    .as.i = value
-                };
-                ast.loc = t.loc;
-		ast.type = AST_INT;
-
-                da_append(ast_nodes, ast);
+		Ast_Node ast = {0};
+		ASSERT(parse_int(t, &ast), "We fucked up in lexing.");
+		da_append(ast_nodes, ast);
             } break;
             case TK_FLOAT: {
+                // TODO: Better way to check for error...
+                // For now we just assume the lexeme is an int; else there is a bug in lexing.
+                float value = sv_to_float(t.lexeme);
+                Ast_Node ast = {
+                    .as.f = value
+                };
+                ast.loc = t.loc;
+		ast.type = AST_FLOAT;
+		ast.token = t;
+
+                da_append(ast_nodes, ast);
             } break;
 
             case TK_BITWISE_AND: {
