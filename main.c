@@ -294,9 +294,26 @@ void free_parser(Parser *p) {
 typedef struct Ast_Node Ast_Node;
 typedef struct Ast_Binop Ast_Binop;
 
+typedef enum {
+	AST_INT,
+	AST_ADD,
+	AST_COUNT
+} Ast_Node_Type;
+
+const char *ast_type_as_str(const Ast_Node_Type t) {
+	switch (t) {
+		case AST_INT: return "INT";
+		case AST_ADD: return "ADD";
+		case AST_COUNT:
+		default: ASSERT(false, "Unreachable!");
+	}
+	return "THIS SHOULD NOT HAPPEN";
+}
+
 struct Ast_Node {
     Ast_Binop *binop;
     Location loc;
+    Ast_Node_Type type;
 
     union {
         uint u;
@@ -321,12 +338,19 @@ void print_ast_node(FILE *f, Ast_Node node) {
     print_loc(f, node.loc);
 
     fprintf(f, " ");
-    if (node.binop) {
-        fprintf(f, "BinOp.{ %u, %d, %f, %s }", node.binop->lhs.as.u, node.binop->lhs.as.i, node.binop->lhs.as.f, node.binop->lhs.as.b ? "true" : "false");
-        fprintf(f, " <OP> ");
-        fprintf(f, "{ %u, %d, %f, %s }", node.binop->rhs.as.u, node.binop->rhs.as.i, node.binop->rhs.as.f, node.binop->rhs.as.b ? "true" : "false");
-    } else {
-        fprintf(f, "{ %u, %d, %f, %s }", node.as.u, node.as.i, node.as.f, node.as.b ? "true" : "false");
+    switch (node.type) {
+	    case AST_INT: {
+		fprintf(f, "<%s>{%d}", ast_type_as_str(node.type), node.as.i);
+	    } break;
+	    case AST_ADD: {
+		fprintf(f, "Binop.{%s} (", ast_type_as_str(node.type));
+		print_ast_node(f, node.binop->lhs);
+		fprintf(f, ", ");
+		print_ast_node(f, node.binop->rhs);
+		fprintf(f, ")");
+	    } break;
+	    case AST_COUNT:
+	    default: ASSERT(false, "Unreachable!");
     }
 }
 
@@ -374,12 +398,13 @@ void parse(Parser *p) {
             case TK_MINUS_EQUAL: {
             } break;
             case TK_PLUS: {
-                // TODO: For now, we will allow '+' to be the first token because why not.
+                // TODO: For now, Eventually we will allow '+' to be the first token because why not.
                 ASSERT(ast_nodes.count > 0, "Expected something before '+'");
                 Ast_Node ast = {0};
                 ast.binop = arena_alloc(&temp_arena, sizeof(Ast_Binop));
                 ast.binop->lhs = ast_nodes.items[ast_nodes.count-1];
                 ast.loc = t.loc;
+		ast.type = AST_ADD;
 
                 if (tokens_copy.count <= 0) {
                     compiler_error(t.loc, "Unterminated '+' Operation!");
@@ -387,6 +412,7 @@ void parse(Parser *p) {
 
                 Token next_token = da_shift(tokens_copy);
 
+		// TODO: Allow addition of floats as well
                 if (next_token.type != TK_INT) {
                     compiler_error(t.loc, "Cannot add and '%s' and '%s'", token_type_as_str(t.type), token_type_as_str(next_token.type));
                 }
@@ -400,6 +426,7 @@ void parse(Parser *p) {
                 };
 
                 rhs_ast.loc = next_token.loc;
+		rhs_ast.type = AST_INT;
 
                 ast.binop->rhs = rhs_ast;
 
@@ -470,6 +497,7 @@ void parse(Parser *p) {
                     .as.i = value
                 };
                 ast.loc = t.loc;
+		ast.type = AST_INT;
 
                 da_append(ast_nodes, ast);
             } break;
