@@ -386,7 +386,7 @@ bool parse_float(Token t, Ast_Node *ast_out) {
 void parse(Parser *p) {
     // NOTE: So we don't loose the tokens ptr to free it.
     Tokens tokens_copy = p->tokens;
-    if (DEBUG_PRINT) info("tokens.count: %zu", tokens_copy.count);
+    /*if (DEBUG_PRINT) info("tokens.count: %zu", tokens_copy.count);*/
 
     Ast_Nodes ast_nodes = {0};
 
@@ -396,10 +396,10 @@ void parse(Parser *p) {
         Token t = da_shift(tokens_copy);
 
         if (DEBUG_PRINT) { 
-            printf("[INFO] ");
-            print_token(stdout, t);
-            printf("\n");
-            info("tokens.count: %zu", tokens_copy.count);
+            /*printf("[INFO] ");*/
+            /*print_token(stdout, t);*/
+            /*printf("\n");*/
+            /*info("tokens.count: %zu", tokens_copy.count);*/
         }
 
         switch (t.type) {
@@ -427,34 +427,36 @@ void parse(Parser *p) {
             case TK_MINUS_EQUAL: {
             } break;
             case TK_PLUS: {
-                // TODO: For now, Eventually we will allow '+' to be the first token because why not.
-                ASSERT(ast_nodes.count > 0, "Expected something before '+'");
                 Ast_Node ast = {0};
                 ast.binop = arena_alloc(&temp_arena, sizeof(Ast_Binop));
-                ast.binop->lhs = ast_nodes.items[ast_nodes.count-1];
+                if (ast_nodes.count > 0) {
+                    ast.binop->lhs = ast_nodes.items[ast_nodes.count-1];
+                }
                 ast.loc = t.loc;
-		ast.type = AST_ADD;
-		ast.token = t;
+                ast.type = AST_ADD;
+                ast.token = t;
 
-                if (tokens_copy.count <= 0) {
-                    compiler_error(t.loc, "Unterminated '+' Operation!");
+                Ast_Node rhs_ast = {0};
+
+                if (tokens_copy.count > 0) {
+                    Token next_token = da_shift(tokens_copy);
+
+                    /*if (next_token.type != TK_INT &&*/
+                    /*next_token.type != TK_FLOAT) {*/
+                    /*  compiler_error(t.loc, "Cannot add '%s' and '%s'", token_type_as_str(ast.binop->lhs.token.type), token_type_as_str(next_token.type));*/
+                    /*}*/
+                    if (!parse_int(next_token, &rhs_ast)) {
+                        parse_float(next_token, &rhs_ast);
+                    }
+
+                    ast.binop->rhs = rhs_ast;
                 }
 
-                Token next_token = da_shift(tokens_copy);
-
-				/*            if (next_token.type != TK_INT &&*/
-				/*next_token.type != TK_FLOAT) {*/
-				/*                compiler_error(t.loc, "Cannot add '%s' and '%s'", token_type_as_str(ast.binop->lhs.token.type), token_type_as_str(next_token.type));*/
-				/*            }*/
-		Ast_Node rhs_ast = {0};
-		if (!parse_int(next_token, &rhs_ast)) {
-			ASSERT((parse_float(next_token, &rhs_ast)), "This should never happen cuz of the check above");
-		}
-
-                ast.binop->rhs = rhs_ast;
-
                 da_append(ast_nodes, ast);
-                da_append(ast_nodes, rhs_ast);
+
+                if (tokens_copy.count > 0) {
+                    da_append(ast_nodes, rhs_ast);
+                }
             } break;
             case TK_PLUS_PLUS: {
             } break;
