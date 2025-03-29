@@ -117,6 +117,35 @@ typedef struct {
     size_t capacity;
 } Tokens;
 
+typedef struct Expression Expression;
+typedef struct Binary_expression Binary_expression;
+typedef struct Grouping Grouping;
+typedef struct Literal Literal;
+
+struct Grouping {
+    Expression *expr;
+};
+
+struct Literal {
+    union {
+        float f;
+        int i;
+        bool b;
+        char ch;
+        char *str;
+    } as;
+};
+
+struct Binary_expression {
+    Expression *lhs;
+    Token      *op;
+    Expression *rhs;
+};
+
+struct Expression {
+    Binary_expression bin_expr;
+};
+
 typedef struct {
     // NOTE: src gets data from a heap allocated string!!!
     String_view src;
@@ -289,284 +318,6 @@ Parser make_parser(Tokens tokens) {
 
 void free_parser(Parser *p) {
     da_free(p->tokens);
-}
-
-typedef struct Ast_Node Ast_Node;
-typedef struct Ast_Binop Ast_Binop;
-
-typedef enum {
-	AST_INT,
-	AST_FLOAT,
-	AST_ADD,
-	AST_COUNT
-} Ast_Node_Type;
-
-const char *ast_type_as_str(const Ast_Node_Type t) {
-	switch (t) {
-		case AST_INT: return "INT";
-		case AST_FLOAT: return "FLOAT";
-		case AST_ADD: return "ADD";
-		case AST_COUNT:
-		default: ASSERT(false, "Unreachable!");
-	}
-	return "THIS SHOULD NOT HAPPEN";
-}
-
-struct Ast_Node {
-    Ast_Binop *binop;
-    Location loc;
-    Ast_Node_Type type;
-
-    Token token;
-
-    union {
-        uint u;
-        int i;
-        double f;
-        bool b;
-    } as;
-};
-
-struct Ast_Binop {
-    Ast_Node lhs;
-    Ast_Node rhs;
-};
-
-typedef struct {
-    Ast_Node *items;
-    size_t count;
-    size_t capacity;
-} Ast_Nodes;
-
-void print_ast_node(FILE *f, Ast_Node node) {
-    print_loc(f, node.loc);
-
-    fprintf(f, " ");
-    switch (node.type) {
-	    case AST_INT: {
-		fprintf(f, "<%s>{%d}", ast_type_as_str(node.type), node.as.i);
-	    } break;
-	    case AST_FLOAT: {
-		fprintf(f, "<%s>{%f}", ast_type_as_str(node.type), node.as.f);
-	    } break;
-	    case AST_ADD: {
-		fprintf(f, "Binop.{%s} (", ast_type_as_str(node.type));
-		print_ast_node(f, node.binop->lhs);
-		fprintf(f, ", ");
-		print_ast_node(f, node.binop->rhs);
-		fprintf(f, ")");
-	    } break;
-	    case AST_COUNT:
-	    default: ASSERT(false, "Unreachable!");
-    }
-}
-
-bool parse_int(Token t, Ast_Node *ast_out) {
-	if (t.type != TK_INT) return false;
-	int value = sv_to_int(t.lexeme);
-	ast_out->as.i = value;
-	ast_out->loc = t.loc;
-	ast_out->type = AST_INT;
-	ast_out->token = t;
-
-	return true;
-}
-
-bool parse_float(Token t, Ast_Node *ast_out) {
-	if (t.type != TK_FLOAT) return false;
-	float value = sv_to_float(t.lexeme);
-	ast_out->as.f = value;
-	ast_out->loc = t.loc;
-	ast_out->type = AST_FLOAT;
-	ast_out->token = t;
-
-	return true;
-}
-
-void parse(Parser *p) {
-    // NOTE: So we don't loose the tokens ptr to free it.
-    Tokens tokens_copy = p->tokens;
-    /*if (DEBUG_PRINT) info("tokens.count: %zu", tokens_copy.count);*/
-
-    Ast_Nodes ast_nodes = {0};
-
-    Arena temp_arena = arena_make(0);
-
-    while (tokens_copy.count) {
-        Token t = da_shift(tokens_copy);
-
-        if (DEBUG_PRINT) { 
-            /*printf("[INFO] ");*/
-            /*print_token(stdout, t);*/
-            /*printf("\n");*/
-            /*info("tokens.count: %zu", tokens_copy.count);*/
-        }
-
-        switch (t.type) {
-            case TK_IDENT: {
-            } break;
-            case TK_KEYWORD: {
-            } break;
-
-            case TK_COMMENT: {
-            } break;
-            case TK_MULTILINE_COMMENT: {
-            } break;
-
-            case TK_STRING: {
-            } break;
-
-            case TK_LEFT_PAREN: {
-            } break;
-            case TK_RIGHT_PAREN: {
-            } break;
-            case TK_MINUS: {
-            } break;
-            case TK_MINUS_MINUS: {
-            } break;
-            case TK_MINUS_EQUAL: {
-            } break;
-            case TK_PLUS: {
-                Ast_Node ast = {0};
-                ast.binop = arena_alloc(&temp_arena, sizeof(Ast_Binop));
-                if (ast_nodes.count > 0) {
-                    ast.binop->lhs = ast_nodes.items[ast_nodes.count-1];
-                }
-                ast.loc = t.loc;
-                ast.type = AST_ADD;
-                ast.token = t;
-
-                Ast_Node rhs_ast = {0};
-
-                if (tokens_copy.count > 0) {
-                    Token next_token = da_shift(tokens_copy);
-
-                    /*if (next_token.type != TK_INT &&*/
-                    /*next_token.type != TK_FLOAT) {*/
-                    /*  compiler_error(t.loc, "Cannot add '%s' and '%s'", token_type_as_str(ast.binop->lhs.token.type), token_type_as_str(next_token.type));*/
-                    /*}*/
-                    if (!parse_int(next_token, &rhs_ast)) {
-                        parse_float(next_token, &rhs_ast);
-                    }
-
-                    ast.binop->rhs = rhs_ast;
-                }
-
-                da_append(ast_nodes, ast);
-
-                if (tokens_copy.count > 0) {
-                    da_append(ast_nodes, rhs_ast);
-                }
-            } break;
-            case TK_PLUS_PLUS: {
-            } break;
-            case TK_PLUS_EQUAL: {
-            } break;
-            case TK_RETURNER: {
-            } break;
-            case TK_LEFT_BRACE: {
-            } break;
-            case TK_RIGHT_BRACE: {
-            } break;
-            case TK_DIVIDE: {
-            } break;
-            case TK_DIVIDE_EQUAL: {
-            } break;
-            case TK_MULTIPLY: {
-            } break;
-            case TK_MULTIPLY_EQUAL: {
-            } break;
-            case TK_MODULUS: {
-            } break;
-            case TK_MODULUS_EQUAL: {
-            } break;
-            case TK_POWER: {
-            } break;
-            case TK_EQUAL: {
-            } break;
-            case TK_NOT: {
-            } break;
-            case TK_NOT_EQUAL: {
-            } break;
-            case TK_EQUAL_EQUAL: {
-            } break;
-            case TK_GT: {
-            } break;
-            case TK_LT: {
-            } break;
-            case TK_GTE: {
-            } break;
-            case TK_LTE: {
-            } break;
-            case TK_COMMA: {
-            } break;
-            case TK_COLON: {
-            } break;
-            case TK_SEMICOLON: {
-                // NOTE: We dont need to do anything.
-            } break;
-            case TK_DOT: {
-            } break;
-            case TK_HASH: {
-            } break;
-            case TK_LEFT_SQUARE_BRACE: {
-            } break;
-            case TK_RIGHT_SQUARE_BRACE: {
-            } break;
-
-            case TK_INT: {
-		Ast_Node ast = {0};
-		ASSERT(parse_int(t, &ast), "We fucked up in lexing.");
-		da_append(ast_nodes, ast);
-            } break;
-            case TK_FLOAT: {
-                // TODO: Better way to check for error...
-                // For now we just assume the lexeme is an int; else there is a bug in lexing.
-                float value = sv_to_float(t.lexeme);
-                Ast_Node ast = {
-                    .as.f = value
-                };
-                ast.loc = t.loc;
-		ast.type = AST_FLOAT;
-		ast.token = t;
-
-                da_append(ast_nodes, ast);
-            } break;
-
-            case TK_BITWISE_AND: {
-            } break;
-            case TK_BITWISE_AND_EQUAL: {
-            } break;
-            case TK_BITWISE_NOT: {
-            } break;
-            case TK_BITWISE_OR: {
-            } break;
-            case TK_BITWISE_OR_EQUAL: {
-            } break;
-            case TK_BITWISE_XOR: {
-            } break;
-            case TK_BITWISE_XOR_EQUAL: {
-            } break;
-            case TK_BITWISE_SHIFT_LEFT: {
-            } break;
-            case TK_BITWISE_SHIFT_RIGHT: {
-            } break;
-            case TK_LOGICAL_AND: {
-            } break;
-            case TK_LOGICAL_OR: {
-            } break;
-            case TK_COUNT:
-            default: ASSERT(false, "Unreachable!");
-        }
-    }
-
-    for (size_t i = 0; i < ast_nodes.count; ++i) {
-        printf("[INFO] "); print_ast_node(stdout, ast_nodes.items[i]); printf("\n");
-    }
-
-    da_free(ast_nodes);
-    arena_free(&temp_arena);
-
 }
 
 String_view get_src_copy(Lexer *l) {
@@ -1145,8 +896,6 @@ int main(int argc, char **argv) {
     Tokens tokens = lex(&l);
 
     Parser p = make_parser(tokens);
-
-    parse(&p);
 
     free_parser(&p);
     free_lexer(&l);
