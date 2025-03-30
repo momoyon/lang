@@ -310,6 +310,20 @@ void free_lexer(Lexer *l) {
     free(l->src.data);
 }
 
+
+/* Understanding BNF [Backus-Naur Form](https://en.wikipedia.org/wiki/Backus%E2%80%93Naur_form):
+*
+* Example Context-Free-Grammar (CFG):
+*
+* breakfast -> protein "with" breakfast "on the side" ;
+*/
+
+
+/* GRAMMAR
+*   EXPR -> TERM (
+*/
+
+
 Parser make_parser(Tokens tokens) {
     return (Parser) {
         .tokens = tokens,
