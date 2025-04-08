@@ -120,8 +120,14 @@ typedef struct {
     size_t capacity;
 } Tokens;
 
+
+bool token_is_number(Token t) {
+    return t.type == TK_INT || t.type == TK_FLOAT;
+}
+
 typedef struct Expression Expression;
-typedef struct Binary_expression Binary_expression;
+typedef struct Unary_expression Unary_expression;
+typedef struct Primary_expression Primary_expression;
 typedef struct Grouping Grouping;
 typedef struct Literal Literal;
 
@@ -139,15 +145,70 @@ struct Literal {
     } as;
 };
 
-struct Binary_expression {
-    Expression *lhs;
-    Token      *op;
-    Expression *rhs;
+struct Unary_expression {
+    Token operator;
+    Expression *operand;
 };
 
-struct Expression {
-    Binary_expression bin_expr;
+struct Primary_expression {
+    Literal value;
 };
+
+typedef enum {
+    EXPR_EQUALITY,
+    EXPR_COMPARISION,
+    EXPR_TERM,
+    EXPR_FACTOR,
+    EXPR_UNARY,
+    EXPR_PRIMARY,
+    EXPR_COUNT,
+} Expression_kind;
+
+const char *expression_kind_as_str(Expression_kind k) {
+    switch (k) {
+        case EXPR_EQUALITY: return "EQUALITY";
+        case EXPR_COMPARISION: return "COMPARISION";
+        case EXPR_TERM: return "TERM";
+        case EXPR_FACTOR: return "FACTOR";
+        case EXPR_UNARY: return "UNARY";
+        case EXPR_PRIMARY: return "PRIMARY";
+        case EXPR_COUNT:
+        default: ASSERT(false, "UNREACHABLE!");
+    }
+
+    return "YOU SHOULD NOT SEE THIS!";
+}
+
+struct Expression {
+    Expression_kind kind;
+    Primary_expression prim_expr;
+    Unary_expression una_expr;
+};
+
+
+/*
+ * PRECEDENCE TABLE
+ *
+ * LOW
+ *  |
+ *  v
+ * HIGH
+ *
+ * NAME         | OP             | ASSOCIATE
+ * -------------+----------------+-----------
+ * Equality     | == !=          | Left
+ * -------------+----------------+-----------
+ * Comparision  | > >= < <=      | Left
+ * -------------+----------------+-----------
+ * Term         | - +            | Left
+ * -------------+----------------+-----------
+ * Factor       | / *            | Left
+ * -------------+----------------+-----------
+ * Unary        | ! -            | Right
+ * -------------+----------------+-----------
+ * Primary      | NUMBERS (expr) | -
+ *
+ */
 
 typedef struct {
     // NOTE: src gets data from a heap allocated string!!!
@@ -292,6 +353,56 @@ Token_type comment_token_type(String_view comment) {
 void print_token(FILE *f, Token t) {
     print_loc(f, t.loc);
     fprintf(f, " [%s] '"SV_FMT"'", token_type_as_str(t.type), SV_ARG(t.lexeme));
+}
+
+
+Expression *primary(Arena *arena, Parser *p) {
+    Tokens tokens = p->tokens;
+    Token t = da_shift(tokens);
+
+    Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
+    expr->type = EXPR_PRIMARY;
+
+    if (token_is_number(t)) {
+        if (t.type == TK_INT) expr->prim_expr.value.as.i = t.
+    } else if (t.type == TK_STRING) {
+
+    } else if (t.type == TK_BOOL) {
+
+    } else if (t.type == TK_NULL) {
+
+    }
+    // TODO: Else Grouping
+    //
+    ASSERT(false, "UNREACHABLE!");
+}
+
+Expression *unary(Arena *arena, Parser *p) {
+    Tokens tokens = p->tokens;
+    Token t = da_shift(tokens);
+
+    Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
+
+
+    if (t.type == TK_NOT || t.type == TK_MINUS) {
+
+        expr->kind = EXPR_UNARY;
+        Unary_expression *unary = (Unary_expression *)arena_alloc(arena, sizeof(Expression));
+        unary->operator = t;
+        unary->operand = unary(arena, p);
+
+        return expr;
+    }
+
+
+}
+
+void equality(Parser *p) {
+    ASSERT(false, "UNIMPLEMENTED");
+}
+
+void expression(Parser *p) {
+    equality(p);
 }
 
 Lexer make_lexer(const char *filename) {
@@ -920,6 +1031,8 @@ int main(int argc, char **argv) {
     Tokens tokens = lex(&l);
 
     Parser p = make_parser(tokens);
+
+    primary(&p);
 
     free_parser(&p);
     free_lexer(&l);
