@@ -5,6 +5,8 @@ import sys
 import shlex
 import coloredlogs, logging
 
+# TODO: Remove the stdin, because we can pass that through BUILD_CMD and RUN_CMD
+
 '''-COLORED PRINT------------'''
 import sys
 
@@ -212,11 +214,13 @@ def hhelp():
         run             - Runs all the tests.
         record          - Records the expected behaviour of all the tests.
         record_build    - Records the expected build behaviour of all the tests.
+        list            - Lists all the tests.
 
     Flags:
-        -h      - Same as the help subcommand.
-        -V      - Verbose output.
-        -x      - Stop on first error.
+        -h             - Same as the help subcommand.
+        -V             - Verbose output.
+        -x             - Stop on first error.
+        -t <test_name> - Specify the test to run/build/etc.
           ''')
 
 def main():
@@ -229,35 +233,37 @@ def main():
         exit(1)
 
 
-    flags = []
-
     # FLAG_VALUES
     verbose_output = False
     stop_on_error  = False
 
     subcmds = []
 
+    test_name = None
+
     while len(sys.argv) > 0:
         arg = sys.argv.pop(0)
 
         if arg.startswith('-') or arg.startswith('/'):
-            flags.append(arg)
+            flag_with_prefix = arg
+            flag = flag_with_prefix[1:]
+            if flag == 'h':
+                hhelp()
+                exit(0)
+            elif flag == 'V':
+                verbose_output = True
+            elif flag == 'x':
+                stop_on_error = True
+            elif flag == 't':
+                if len(sys.argv) <= 0:
+                    logger.error(f"Please provide the name of the test after {flag_with_prefix}")
+                    exit(1)
+                test_name = sys.argv.pop(0)
+            else:
+                logger.error(f"Invalid flag '{flag}'")
+                exit(1)
         else:
             subcmds.append(arg)
-
-    # Parse flags
-    for flag_with_prefix in flags:
-        flag = flag_with_prefix[1:]
-        if flag == 'h':
-            hhelp()
-            exit(0)
-        elif flag == 'V':
-            verbose_output = True
-        elif flag == 'x':
-            stop_on_error = True
-        else:
-            logger.error(f"Invalid flag '{flag}'")
-            exit(1)
 
     if len(subcmds) <= 0:
         logger.error("Please provide at least one subcommand!")
@@ -281,6 +287,20 @@ def main():
         if not tests.get(base_name):
             tests[base_name] = Test(base_name)
 
+    # User wanted to test a specific test_name
+    if test_name != None:
+        # Remove suffix
+        test_name = test_name.removesuffix(SRC_SUFFIX)
+        if test_name not in tests:
+            logger.error(f"{test_name} is not a valid test!")
+            exit(1)
+
+        new_tests = tests.copy()
+        for t in tests:
+            if t != test_name:
+                new_tests.pop(t)
+        tests = new_tests
+
     # print(f"BUILD_CMD: {BUILD_CMD}")
     # print(f"RUN_CMD: {RUN_CMD}")
     # print(f"TESTS_DIR: {TESTS_DIR}")
@@ -291,7 +311,11 @@ def main():
         current_test_id = 0
         passing_tests_count = 0
 
-        if subcmd == "help":
+        if subcmd == "list":
+            logger.info("Tests: ")
+            for t in tests:
+                logger.info(f"-> {t}")
+        elif subcmd == "help":
             hhelp()
             exit(0)
         elif subcmd == "build":
@@ -377,12 +401,12 @@ def main():
                 passing_tests_count += 1
                 cprint('green', 'default', '[PASS]')
 
-            print(f"PASSED {passing_tests_count}/{total_tests_count}")
+            cprint("green", "default", f"PASSED {passing_tests_count}/{total_tests_count}")
         elif subcmd == "record":
             check_crucial_envvar(RUN_CMD, "RUN_CMD")
             print(f'----- [RECORD] -----')
             for test_name in tests:
-                print(f"+ Recording expected behaviour for '{test_name}'...")
+                cprint("green", "default", f"+ Recording expected behaviour for '{test_name}'...")
                 test = tests[test_name]
 
                 cmd = shlex.split(get_cmd_substituted(RUN_CMD, tests, test_name))
@@ -403,14 +427,14 @@ def main():
                     tests[test_name].expected_stderr = res.stderr
                     tests[test_name].expected_returncode = res.returncode
                     tests[test_name].save_expected()
-                    print('[SUCCESS] Recorded expected behaviour')
+                    cprint("green", "default", '[SUCCESS] Recorded expected behaviour')
                 else:
-                    print('[SKIP]')
+                    cprint('yellow', 'default', '[SKIP]')
         elif subcmd == "record_build":
             check_crucial_envvar(BUILD_CMD, "BUILD_CMD")
-            print(f'----- [RECORD_BUILD] -----')
+            cprint("green", "default", f'----- [RECORD_BUILD] -----')
             for test_name in tests:
-                print(f"+ Recording expected build behaviour for '{test_name}'...")
+                cprint("green", "default", f"+ Recording expected build behaviour for '{test_name}'...")
                 test = tests[test_name]
 
                 if len(test.build_stdin) > 0:
@@ -419,7 +443,7 @@ def main():
                     if ans.lower() == 'y':
                         test.build_stdin = input("What is the input passed? ")
                     else:
-                        print("[SKIPPING]...")
+                        cprint('yellow', 'default', '[SKIP]')
                         continue
                 else:
                     test.build_stdin = input("What is the input passed? ")
@@ -442,12 +466,12 @@ def main():
                     tests[test_name].build_expected_stderr = res.stderr
                     tests[test_name].build_expected_returncode = res.returncode
                     tests[test_name].save_expected()
-                    print('[SUCCESS] Recorded expected behaviour')
+                    cprint('green', 'default', '[SUCCESS] Recorded expected behaviour')
                 else:
-                    print('[SKIP]')
+                    cprint('yellow', 'default', '[SKIP]')
 
         else:
-            print(f"[ERROR] Invalid subcommand '{subcmd}'", file=sys.stderr)
+            logger.error("Invalid subcommand '{subcmd}'")
             exit(1)
 
 if __name__ == "__main__":
