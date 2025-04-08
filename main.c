@@ -53,6 +53,7 @@ typedef enum {
     TK_STRING,
 
     TK_BOOL,
+    TK_NULL,
 
     TK_LEFT_PAREN,
     TK_RIGHT_PAREN,
@@ -169,6 +170,7 @@ const char *token_type_as_str(Token_type t) {
         case TK_MULTILINE_COMMENT: return "MULTILINE_COMMENT";
         case TK_STRING: return "STRING";
         case TK_BOOL: return "BOOL";
+        case TK_NULL: return "NULL";
         case TK_LEFT_PAREN: return "LEFT_PAREN";
         case TK_RIGHT_PAREN: return "RIGHT_PAREN";
         case TK_MINUS: return "MINUS";
@@ -577,6 +579,8 @@ bool next_token(Lexer *l, Token *t_out) {
         t_out->type   = (is_keyword(ident_sv) ? TK_KEYWORD : TK_IDENT);
         if (sv_equals(ident_sv, SV("true")) || sv_equals(ident_sv, SV("false"))) {
             t_out->type = TK_BOOL;
+        } else if (sv_equals(ident_sv, SV("null"))) {
+            t_out->type = TK_NULL;
         }
         if (DEBUG_PRINT) {
             print_token(stdout, *t_out);
