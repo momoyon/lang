@@ -69,7 +69,6 @@
 #define sv_to_int c_sv_to_int
 #define sv_to_uint c_sv_to_uint
 #define sv_to_uint8_hex c_sv_to_uint8_hex
-#define sv_to_ptr c_sv_to_ptr
 #define sv_to_float c_sv_to_float
 #define sv_contains_char c_sv_contains_char
 #define sv_is_hex_numbers c_sv_is_hex_numbers
@@ -284,7 +283,6 @@ void c_sv_trim(c_String_view* sv);
 char* c_sv_to_cstr(c_String_view sv);
 int64 c_sv_to_int(c_String_view sv, int *count, int base);
 uint64 c_sv_to_uint(c_String_view sv, int *count, int base);
-void* c_sv_to_ptr(c_String_view sv, int *count, int base);
 float64 c_sv_to_float(c_String_view sv, int *count);
 bool c_sv_contains_char(c_String_view sv, char ch);
 bool c_sv_is_hex_numbers(c_String_view sv);
@@ -663,14 +661,6 @@ float64 c_sv_to_float(c_String_view sv, int *count) {
 
     *count = (int)(endptr - str);
 
-    C_FREE(str);
-    return res;
-}
-
-void* c_sv_to_ptr(c_String_view sv, int *count, int base) {
-    char* str = c_sv_to_cstr(sv);
-    char* end = NULL;
-    void* res = (void*)strtoull(str, &end, 16);
     C_FREE(str);
     return res;
 }
