@@ -127,9 +127,11 @@ bool token_is_number(Token t) {
 
 typedef struct Expression Expression;
 typedef struct Unary_expression Unary_expression;
+typedef struct Binary_expression Binary_expression;
 typedef struct Primary_expression Primary_expression;
 typedef struct Grouping Grouping;
 typedef struct Literal Literal;
+typedef enum   Literal_kind Literal_kind;
 
 struct Grouping {
     Expression *expr;
@@ -145,20 +147,46 @@ struct Literal {
     } as;
 };
 
+enum Literal_kind {
+    LIT_FLOAT,
+    LIT_INT,
+    LIT_BOOL,
+    LIT_CHAR,
+    LIT_STRING,
+    LIT_COUNT,
+};
+
+const char *lit_kind_as_str(Literal_kind k) {
+    switch (k) {
+        case LIT_FLOAT: return "FLOAT";
+        case LIT_INT: return "INT";
+        case LIT_BOOL: return "BOOL";
+        case LIT_CHAR: return "CHAR";
+        case LIT_STRING: return "STRING";
+        case LIT_COUNT: 
+        default: ASSERT(false, "UNREACHABLE!");
+    }
+    return "YOU SHOULD NOT SEE THIS!";
+}
+
 struct Unary_expression {
     Token operator;
     Expression *operand;
 };
 
+struct Binary_expression {
+    Token operator;
+    Expression *lhs;
+    Expression *rhs;
+};
+
 struct Primary_expression {
     Literal value;
+    Literal_kind value_kind;
 };
 
 typedef enum {
-    EXPR_EQUALITY,
-    EXPR_COMPARISION,
-    EXPR_TERM,
-    EXPR_FACTOR,
+    EXPR_BINARY,
     EXPR_UNARY,
     EXPR_PRIMARY,
     EXPR_COUNT,
@@ -166,10 +194,7 @@ typedef enum {
 
 const char *expression_kind_as_str(Expression_kind k) {
     switch (k) {
-        case EXPR_EQUALITY: return "EQUALITY";
-        case EXPR_COMPARISION: return "COMPARISION";
-        case EXPR_TERM: return "TERM";
-        case EXPR_FACTOR: return "FACTOR";
+        case EXPR_BINARY: return "BINARY";
         case EXPR_UNARY: return "UNARY";
         case EXPR_PRIMARY: return "PRIMARY";
         case EXPR_COUNT:
@@ -181,9 +206,53 @@ const char *expression_kind_as_str(Expression_kind k) {
 
 struct Expression {
     Expression_kind kind;
-    Primary_expression prim_expr;
-    Unary_expression una_expr;
+    Binary_expression *bin_expr;
+    Primary_expression *prim_expr;
+    Unary_expression *unary_expr;
+    Location loc;
 };
+
+void print_primary_expression(FILE *f, Primary_expression *pe) {
+    switch (pe->value_kind) {
+        case LIT_FLOAT:  fprintf(f, "%f", pe->value.as.f); break;
+        case LIT_INT:    fprintf(f, "%d", pe->value.as.i); break;
+        case LIT_BOOL:   fprintf(f, "%s", pe->value.as.b ? "true" : "false"); break;
+        case LIT_CHAR:   fprintf(f, "%c", pe->value.as.ch); break;
+        case LIT_STRING: fprintf(f, "%s", pe->value.as.str); break;
+        case LIT_COUNT:
+        default: ASSERT(false, "UNREACHABLE!");
+    }
+}
+
+const char *token_type_as_str(Token_type t);
+
+void print_expression_as_value(FILE *f, Expression e) {
+    switch (e.kind) {
+        case EXPR_BINARY: {
+            fprintf(f, "Bin: {");
+            print_expression_as_value(f, *e.bin_expr->lhs);
+            fprintf(f, " %s ", token_type_as_str(e.bin_expr->operator.type));
+            print_expression_as_value(f, *e.bin_expr->rhs);
+            fprintf(f, "}");
+
+        } break;
+        case EXPR_UNARY: {
+            ASSERT(false, "UNIMPLEMENTED!");
+        } break;
+        case EXPR_PRIMARY: {
+            print_primary_expression(f, e.prim_expr);
+        } break;
+        case EXPR_COUNT:
+        default: ASSERT(false, "UNREACHABLE!");
+    }
+}
+
+void print_expression(FILE *f, Expression e) {
+    print_loc(f, e.loc);
+    fprintf(f, " [%s] '", expression_kind_as_str(e.kind));
+    print_expression_as_value(f, e);
+    fprintf(f, "'");
+}
 
 
 /*
@@ -221,6 +290,7 @@ typedef struct {
 
 typedef struct {
     Tokens tokens;
+    int current_token_id;
 } Parser;
 
 const char *token_type_as_str(Token_type t) {
@@ -355,22 +425,55 @@ void print_token(FILE *f, Token t) {
     fprintf(f, " [%s] '"SV_FMT"'", token_type_as_str(t.type), SV_ARG(t.lexeme));
 }
 
+Token parser_current_token(Parser *p) {
+    ASSERT(0 <= p->current_token_id && (size_t)p->current_token_id <= p->tokens.count - 1, "Parser.current_token_id outofbounds!");
+    return p->tokens.items[p->current_token_id];
+}
+
+
+// Predecls
+Expression *primary(Arena *arena, Parser *p);
+Expression *unary(Arena *arena, Parser *p);
+Expression *factor(Arena *arena, Parser *p);
+Expression *comparision(Arena *arena, Parser *p);
+Expression *term(Arena *arena, Parser *p);
+Expression *equality(Arena *arena, Parser *p);
+Expression *expression(Arena *arena, Parser *p);
 
 Expression *primary(Arena *arena, Parser *p) {
-    Tokens tokens = p->tokens;
-    Token t = da_shift(tokens);
+    Token t = parser_current_token(p);
 
     Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
-    expr->type = EXPR_PRIMARY;
+    expr->kind = EXPR_PRIMARY;
+    expr->loc = t.loc;
+    expr->prim_expr = (Primary_expression *)arena_alloc(arena, sizeof(Primary_expression));
 
     if (token_is_number(t)) {
-        if (t.type == TK_INT) expr->prim_expr.value.as.i = t.
+        if (t.type == TK_INT) {
+            int i_count = -1;
+            int i = sv_to_int(t.lexeme, &i_count, 10);
+            ASSERT(i_count != -1, "We made a mistake in lexing of integers!");
+            expr->prim_expr->value.as.i = i;
+            expr->prim_expr->value_kind = LIT_INT;
+            p->current_token_id++;
+            return expr;
+        } else if (t.type == TK_FLOAT) {
+            int f_count = -1;
+            float f = sv_to_float(t.lexeme, &f_count);
+            ASSERT(f_count != -1, "We made a mistake in lexing of floats!");
+            expr->prim_expr->value.as.f = f;
+            expr->prim_expr->value_kind = LIT_FLOAT;
+            p->current_token_id++;
+            return expr;
+        } else {
+
+        }
     } else if (t.type == TK_STRING) {
-
+        ASSERT(false, "UNIMPLEMENTED");
     } else if (t.type == TK_BOOL) {
-
+        ASSERT(false, "UNIMPLEMENTED");
     } else if (t.type == TK_NULL) {
-
+        ASSERT(false, "UNIMPLEMENTED");
     }
     // TODO: Else Grouping
     //
@@ -378,37 +481,114 @@ Expression *primary(Arena *arena, Parser *p) {
 }
 
 Expression *unary(Arena *arena, Parser *p) {
-    Tokens tokens = p->tokens;
-    Token t = da_shift(tokens);
+    Token t = parser_current_token(p);
 
     Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
-
+    expr->loc = t.loc;
+    expr->unary_expr = (Unary_expression *)arena_alloc(arena, sizeof(Unary_expression));
 
     if (t.type == TK_NOT || t.type == TK_MINUS) {
-
         expr->kind = EXPR_UNARY;
-        Unary_expression *unary = (Unary_expression *)arena_alloc(arena, sizeof(Expression));
-        unary->operator = t;
-        unary->operand = unary(arena, p);
+        Unary_expression *unary_expr = expr->unary_expr;
+        unary_expr->operator = t;
+        p->current_token_id++;
+        unary_expr->operand = unary(arena, p);
+        return expr;
+    }
+
+    return primary(arena, p);
+}
+
+Expression *factor(Arena *arena, Parser *p) {
+    Token t = parser_current_token(p);
+
+    Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
+    expr->loc = t.loc;
+    expr->bin_expr = (Binary_expression *)arena_alloc(arena, sizeof(Binary_expression));
+
+    expr->bin_expr->lhs = unary(arena, p);
+    t = parser_current_token(p);
+
+    if (t.type == TK_DIVIDE || t.type == TK_MULTIPLY) {
+        expr->kind = EXPR_BINARY;
+        Binary_expression *bin_expr = expr->bin_expr;
+        bin_expr->operator = t;
+        p->current_token_id++;
+        bin_expr->rhs = unary(arena, p);
 
         return expr;
     }
 
-
+    return unary(arena, p);
 }
 
-void equality(Parser *p) {
-    ASSERT(false, "UNIMPLEMENTED");
+Expression *term(Arena *arena, Parser *p) {
+    Tokens tokens = p->tokens;
+    Token t = da_shift(tokens);
+
+    Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
+    expr->loc = t.loc;
+    expr->bin_expr = (Binary_expression *)arena_alloc(arena, sizeof(Binary_expression));
+
+    if (t.type == TK_MINUS || t.type == TK_PLUS) {
+        expr->bin_expr->operator = t;
+        // TODO: Somehow i need to get the last expression parsed.
+        // bin_expr->lhs =
+        expr->bin_expr->rhs = expression(arena, p);
+        return expr;
+    }
+
+    return factor(arena, p);
 }
 
-void expression(Parser *p) {
-    equality(p);
+Expression *comparision(Arena *arena, Parser *p) {
+    Tokens tokens = p->tokens;
+    Token t = da_shift(tokens);
+
+    Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
+    expr->loc = t.loc;
+    expr->bin_expr = (Binary_expression *)arena_alloc(arena, sizeof(Binary_expression));
+
+    if (t.type == TK_GT || t.type == TK_GTE ||
+        t.type == TK_LT || t.type == TK_LTE) {
+        expr->bin_expr->operator = t;
+        // TODO: Somehow i need to get the last expression parsed.
+        // bin_expr->lhs =
+        expr->bin_expr->rhs = expression(arena, p);
+        return expr;
+    }
+
+    return term(arena, p);
+}
+
+Expression *equality(Arena *arena, Parser *p) {
+    Tokens tokens = p->tokens;
+    Token t = da_shift(tokens);
+
+    Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
+    expr->loc = t.loc;
+    expr->bin_expr = (Binary_expression *)arena_alloc(arena, sizeof(Binary_expression));
+
+    if (t.type == TK_EQUAL_EQUAL || t.type == TK_NOT_EQUAL) {
+        expr->bin_expr->operator = t;
+        // TODO: Somehow i need to get the last expression parsed.
+        // bin_expr->lhs =
+        expr->bin_expr->rhs = expression(arena, p);
+
+        return expr;
+    }
+
+    return comparision(arena, p);
+}
+
+Expression *expression(Arena *arena, Parser *p) {
+    return equality(arena, p);
 }
 
 Lexer make_lexer(const char *filename) {
-    bool ok = false;
-    const char *buf = slurp_file(filename, &ok);
-    if (!ok) {
+    int file_size = -1;
+    const char *buf = read_file(filename, &file_size);
+    if (file_size == -1) {
         exit(1);
     }
     Lexer l = {
@@ -443,6 +623,7 @@ void free_lexer(Lexer *l) {
 Parser make_parser(Tokens tokens) {
     return (Parser) {
         .tokens = tokens,
+        .current_token_id = 0,
     };
 }
 
@@ -1032,8 +1213,13 @@ int main(int argc, char **argv) {
 
     Parser p = make_parser(tokens);
 
-    primary(&p);
+    Arena expr_arena = arena_make(0);
 
+    Expression *expr = factor(&expr_arena, &p);
+
+    print_expression(stdout, *expr); printf("\n");
+
+    arena_free(&expr_arena);
     free_parser(&p);
     free_lexer(&l);
     da_free(flags);
