@@ -12,6 +12,16 @@
 
 static bool DEBUG_PRINT = false;
 
+// expression     → equality ;
+// equality       → comparison ( ( "!=" | "==" ) comparison )* ;
+// comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+// term           → factor ( ( "-" | "+" ) factor )* ;
+// factor         → unary ( ( "/" | "*" ) unary )* ;
+// unary          → ( "!" | "-" ) unary
+//                | primary ;
+// primary        → NUMBER | STRING | "true" | "false" | "nil"
+//                | "(" expression ")" ;
+
 /// NOTE: Location
 typedef struct {
     const char *filename;
@@ -296,11 +306,11 @@ void print_primary_expression(FILE *f, Primary_expression *pe) {
 void print_expression_as_value(FILE *f, Expression e) {
     switch (e.kind) {
         case EXPR_BINARY: {
-            fprintf(f, "Bin: {");
+            fprintf(f, "(");
             print_expression_as_value(f, *e.bin_expr->lhs);
             fprintf(f, " %s ", token_type_as_str(e.bin_expr->operator.type));
             print_expression_as_value(f, *e.bin_expr->rhs);
-            fprintf(f, "}");
+            fprintf(f, ")");
 
         } break;
         case EXPR_UNARY: {
@@ -366,9 +376,9 @@ const char *token_type_as_str(Token_type t) {
         case TK_RETURNER: return "RETURNER";
         case TK_LEFT_BRACE: return "LEFT_BRACE";
         case TK_RIGHT_BRACE: return "RIGHT_BRACE";
-        case TK_DIVIDE: return "DIVIDE";
+        case TK_DIVIDE: return "/";
         case TK_DIVIDE_EQUAL: return "DIVIDE_EQUAL";
-        case TK_MULTIPLY: return "MULTIPLY";
+        case TK_MULTIPLY: return "*";
         case TK_MULTIPLY_EQUAL: return "MULTIPLY_EQUAL";
         case TK_MODULUS: return "MODULUS";
         case TK_MODULUS_EQUAL: return "MODULUS_EQUAL";
@@ -489,6 +499,7 @@ bool parser_match_token(Parser *p, const Token_type t) {
 
 bool parser_check_token(Parser *p, const Token_type t) {
     if (parser_eof(p)) return false;
+    return parser_peek(p).type == t;
 }
 
 Token parser_advance(Parser *p) {
@@ -526,6 +537,7 @@ Expression *equality(Arena *arena, Parser *p);
 Expression *expression(Arena *arena, Parser *p);
 
 Expression *primary(Arena *arena, Parser *p) {
+    // NOTE: We can advance here because primary is the last rule
     Token t = parser_advance(p);
 
     Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
@@ -540,7 +552,6 @@ Expression *primary(Arena *arena, Parser *p) {
             ASSERT(i_count != -1, "We made a mistake in lexing of integers!");
             expr->prim_expr->value.as.i = i;
             expr->prim_expr->value_kind = LIT_INT;
-            p->current_token_id++;
             return expr;
         } else if (t.type == TK_FLOAT) {
             int f_count = -1;
@@ -548,7 +559,6 @@ Expression *primary(Arena *arena, Parser *p) {
             ASSERT(f_count != -1, "We made a mistake in lexing of floats!");
             expr->prim_expr->value.as.f = f;
             expr->prim_expr->value_kind = LIT_FLOAT;
-            p->current_token_id++;
             return expr;
         } else {
 
@@ -566,7 +576,7 @@ Expression *primary(Arena *arena, Parser *p) {
 }
 
 Expression *unary(Arena *arena, Parser *p) {
-    Token t = parser_current_token(p);
+    Token t = parser_peek(p);
 
     Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
     expr->loc = t.loc;
@@ -575,8 +585,7 @@ Expression *unary(Arena *arena, Parser *p) {
     if (t.type == TK_NOT || t.type == TK_MINUS) {
         expr->kind = EXPR_UNARY;
         Unary_expression *unary_expr = expr->unary_expr;
-        unary_expr->operator = t;
-        p->current_token_id++;
+        unary_expr->operator = parser_advance(p);
         unary_expr->operand = unary(arena, p);
         return expr;
     }
@@ -585,26 +594,26 @@ Expression *unary(Arena *arena, Parser *p) {
 }
 
 Expression *factor(Arena *arena, Parser *p) {
-    Token t = parser_current_token(p);
+    Token t = parser_peek(p);
 
-    Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
-    expr->loc = t.loc;
-    expr->bin_expr = (Binary_expression *)arena_alloc(arena, sizeof(Binary_expression));
+    Expression *expr = unary(arena, p);
 
-    expr->bin_expr->lhs = unary(arena, p);
-    t = parser_current_token(p);
+    while (parser_match_token(p, TK_DIVIDE) || parser_match_token(p, TK_MULTIPLY)) {
+        Token op = parser_previous(p);
+        Expression *rhs = unary(arena, p);
 
-    if (t.type == TK_DIVIDE || t.type == TK_MULTIPLY) {
-        expr->kind = EXPR_BINARY;
-        Binary_expression *bin_expr = expr->bin_expr;
-        bin_expr->operator = t;
-        p->current_token_id++;
-        bin_expr->rhs = unary(arena, p);
+        Expression *new_expr = (Expression *)arena_alloc(arena, sizeof(Expression));
+        new_expr->kind = EXPR_BINARY;
+        new_expr->loc = expr->loc;
+        new_expr->bin_expr = (Binary_expression *)arena_alloc(arena, sizeof(Binary_expression));
+        new_expr->bin_expr->lhs = expr;
+        new_expr->bin_expr->operator = op;
+        new_expr->bin_expr->rhs = rhs;
 
-        return expr;
+        expr = new_expr;
     }
 
-    return unary(arena, p);
+    return expr;
 }
 
 Expression *term(Arena *arena, Parser *p) {
