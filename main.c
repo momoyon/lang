@@ -12,36 +12,18 @@
 
 static bool DEBUG_PRINT = false;
 
-void usage(const char *program) {
-    info("Usage: %s [flag(s)] <file>", program);
-}
-
-void help(const char *program) {
-    usage(program);
-
-    info("");
-    info("Flags: ");
-    info("  -h      Prints this help message.");
-    info("  -v      Prints the version of the compiler.");
-    info("  -d      Enables debug printing.");
-}
-
+/// NOTE: Location
 typedef struct {
     const char *filename;
     int line;
     int col;
 } Location;
 
-void print_loc(FILE *f, Location loc) {
-    /*ASSERT(loc != NULL, "Bro you passed a NULL...");*/
-    fprintf(f, "%s:%d:%d", loc.filename, loc.line, loc.col);
-}
+void print_loc(FILE *f, Location loc);
 
-#define compiler_error(loc, fmt, ...) do { \
-        print_loc(stderr, loc);\
-        putc(' ', stderr);\
-        error(fmt, ##__VA_ARGS__);\
-    } while (0)
+///
+
+/// NOTE: Token
 
 typedef enum {
     TK_IDENT,
@@ -105,8 +87,11 @@ typedef enum {
     TK_LOGICAL_AND,
     TK_LOGICAL_OR,
 
+    TK_EOF,
     TK_COUNT,
 } Token_type;
+
+const char *token_type_as_str(Token_type t);
 
 typedef struct {
     String_view lexeme;
@@ -114,28 +99,72 @@ typedef struct {
     Token_type type;
 } Token;
 
+bool token_is_number(Token t);
+void print_token(FILE *f, Token t);
+
 typedef struct {
     Token *items;
     size_t count;
     size_t capacity;
 } Tokens;
 
+///
 
-bool token_is_number(Token t) {
-    return t.type == TK_INT || t.type == TK_FLOAT;
-}
+/// NOTE: Lexer
 
+typedef struct {
+    // NOTE: src gets data from a heap allocated string!!!
+    String_view src;
+    size_t cur;
+    size_t bol; // Beginning of Line
+    size_t line;
+    const char *filename;
+} Lexer;
+
+Lexer make_lexer(const char *filename);
+Tokens lex(Lexer *l);
+bool next_token(Lexer *l, Token *t_out);
+String_view get_src_copy(Lexer *l);
+bool eof(Lexer *l);
+int col(Lexer *l);
+char current_char(Lexer *l);
+char next_char(Lexer *l);
+char consume_char(Lexer *l);
+void consume_ident(Lexer *l, String_view *ident_sv_out, Location *loc_out);
+void consume_string(Lexer *l, String_view *string_sv_out, Location *loc_out);
+void consume_single_char(Lexer *l, String_view *sv_out, Location *loc_out);
+void consume_number(Lexer *l, String_view *sv_out, Location *loc_out);
+void consume_comment(Lexer *l, String_view *sv_out, Location *loc_out);
+void left_trim(Lexer *l);
+bool next_token(Lexer *l, Token *t_out);
+void free_lexer(Lexer *l);
+
+///
+
+/// NOTE: Parser
+typedef struct {
+    Tokens tokens;
+    int current_token_id;
+} Parser;
+
+Parser make_parser(Tokens tokens);
+bool parser_match_token(Parser *p, const Token_type t);
+bool parser_check_token(Parser *p, const Token_type t);
+Token parser_advance(Parser *p);
+Token parser_previous(Parser *p);
+Token parser_peek(Parser *p);
+bool parser_eof(Parser *p);
+void free_parser(Parser *p);
+
+///
+
+/// NOTE: Expressions
 typedef struct Expression Expression;
 typedef struct Unary_expression Unary_expression;
 typedef struct Binary_expression Binary_expression;
 typedef struct Primary_expression Primary_expression;
-typedef struct Grouping Grouping;
 typedef struct Literal Literal;
 typedef enum   Literal_kind Literal_kind;
-
-struct Grouping {
-    Expression *expr;
-};
 
 struct Literal {
     union {
@@ -156,18 +185,7 @@ enum Literal_kind {
     LIT_COUNT,
 };
 
-const char *lit_kind_as_str(Literal_kind k) {
-    switch (k) {
-        case LIT_FLOAT: return "FLOAT";
-        case LIT_INT: return "INT";
-        case LIT_BOOL: return "BOOL";
-        case LIT_CHAR: return "CHAR";
-        case LIT_STRING: return "STRING";
-        case LIT_COUNT: 
-        default: ASSERT(false, "UNREACHABLE!");
-    }
-    return "YOU SHOULD NOT SEE THIS!";
-}
+const char *lit_kind_as_str(Literal_kind k);
 
 struct Unary_expression {
     Token operator;
@@ -185,12 +203,71 @@ struct Primary_expression {
     Literal_kind value_kind;
 };
 
+void print_primary_expression(FILE *f, Primary_expression *pe);
+
 typedef enum {
     EXPR_BINARY,
     EXPR_UNARY,
     EXPR_PRIMARY,
     EXPR_COUNT,
 } Expression_kind;
+
+const char *expression_kind_as_str(Expression_kind k);
+
+struct Expression {
+    Expression_kind kind;
+    Binary_expression *bin_expr;
+    Primary_expression *prim_expr;
+    Unary_expression *unary_expr;
+    Location loc;
+};
+
+void print_expression_as_value(FILE *f, Expression e);
+void print_expression(FILE *f, Expression e);
+
+///
+
+void usage(const char *program) {
+    info("Usage: %s [flag(s)] <file>", program);
+}
+
+void help(const char *program) {
+    usage(program);
+
+    info("");
+    info("Flags: ");
+    info("  -h      Prints this help message.");
+    info("  -v      Prints the version of the compiler.");
+    info("  -d      Enables debug printing.");
+}
+
+void print_loc(FILE *f, Location loc) {
+    /*ASSERT(loc != NULL, "Bro you passed a NULL...");*/
+    fprintf(f, "%s:%d:%d", loc.filename, loc.line, loc.col);
+}
+
+#define compiler_error(loc, fmt, ...) do { \
+        print_loc(stderr, loc);\
+        putc(' ', stderr);\
+        error(fmt, ##__VA_ARGS__);\
+    } while (0)
+
+
+bool token_is_number(Token t) {
+    return t.type == TK_INT || t.type == TK_FLOAT;
+}
+const char *lit_kind_as_str(Literal_kind k) {
+    switch (k) {
+        case LIT_FLOAT: return "FLOAT";
+        case LIT_INT: return "INT";
+        case LIT_BOOL: return "BOOL";
+        case LIT_CHAR: return "CHAR";
+        case LIT_STRING: return "STRING";
+        case LIT_COUNT: 
+        default: ASSERT(false, "UNREACHABLE!");
+    }
+    return "YOU SHOULD NOT SEE THIS!";
+}
 
 const char *expression_kind_as_str(Expression_kind k) {
     switch (k) {
@@ -204,14 +281,6 @@ const char *expression_kind_as_str(Expression_kind k) {
     return "YOU SHOULD NOT SEE THIS!";
 }
 
-struct Expression {
-    Expression_kind kind;
-    Binary_expression *bin_expr;
-    Primary_expression *prim_expr;
-    Unary_expression *unary_expr;
-    Location loc;
-};
-
 void print_primary_expression(FILE *f, Primary_expression *pe) {
     switch (pe->value_kind) {
         case LIT_FLOAT:  fprintf(f, "%f", pe->value.as.f); break;
@@ -223,8 +292,6 @@ void print_primary_expression(FILE *f, Primary_expression *pe) {
         default: ASSERT(false, "UNREACHABLE!");
     }
 }
-
-const char *token_type_as_str(Token_type t);
 
 void print_expression_as_value(FILE *f, Expression e) {
     switch (e.kind) {
@@ -278,20 +345,6 @@ void print_expression(FILE *f, Expression e) {
  * Primary      | NUMBERS (expr) | -
  *
  */
-
-typedef struct {
-    // NOTE: src gets data from a heap allocated string!!!
-    String_view src;
-    size_t cur;
-    size_t bol; // Beginning of Line
-    size_t line;
-    const char *filename;
-} Lexer;
-
-typedef struct {
-    Tokens tokens;
-    int current_token_id;
-} Parser;
 
 const char *token_type_as_str(Token_type t) {
     switch (t) {
@@ -348,6 +401,7 @@ const char *token_type_as_str(Token_type t) {
         case TK_BITWISE_SHIFT_RIGHT: return "BITWISE_SHIFT_RIGHT";
         case TK_LOGICAL_AND: return "LOGICAL_AND";
         case TK_LOGICAL_OR: return "LOGICAL_OR";
+        case TK_EOF: return "EOF";
         case TK_COUNT:
         default: {
             ASSERT(false, "UNREACHABLE");
@@ -425,10 +479,41 @@ void print_token(FILE *f, Token t) {
     fprintf(f, " [%s] '"SV_FMT"'", token_type_as_str(t.type), SV_ARG(t.lexeme));
 }
 
-Token parser_current_token(Parser *p) {
-    ASSERT(0 <= p->current_token_id && (size_t)p->current_token_id <= p->tokens.count - 1, "Parser.current_token_id outofbounds!");
+bool parser_match_token(Parser *p, const Token_type t) {
+    if (parser_check_token(p, t)) {
+        parser_advance(p);
+        return true;
+    }
+    return false;
+}
+
+bool parser_check_token(Parser *p, const Token_type t) {
+    if (parser_eof(p)) return false;
+}
+
+Token parser_advance(Parser *p) {
+    if (!parser_eof(p)) p->current_token_id++;
+    return parser_previous(p);
+}
+
+Token parser_previous(Parser *p) {
+    ASSERT(0 <= p->current_token_id-1 && (size_t)p->current_token_id-1 <= p->tokens.count-1, "OutofBounds");
+    return p->tokens.items[p->current_token_id-1];
+}
+
+Token parser_peek(Parser *p) {
+    ASSERT(0 <= p->current_token_id && (size_t)p->current_token_id <= p->tokens.count-1, "OutofBounds");
     return p->tokens.items[p->current_token_id];
 }
+
+bool parser_eof(Parser *p) {
+    return parser_peek(p).type == TK_EOF;
+}
+
+// Token parser_current_token(Parser *p) {
+//     ASSERT(0 <= p->current_token_id && (size_t)p->current_token_id <= p->tokens.count - 1, "Parser.current_token_id outofbounds!");
+//     return p->tokens.items[p->current_token_id];
+// }
 
 
 // Predecls
@@ -441,7 +526,7 @@ Expression *equality(Arena *arena, Parser *p);
 Expression *expression(Arena *arena, Parser *p);
 
 Expression *primary(Arena *arena, Parser *p) {
-    Token t = parser_current_token(p);
+    Token t = parser_advance(p);
 
     Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
     expr->kind = EXPR_PRIMARY;
@@ -1150,6 +1235,12 @@ Tokens lex(Lexer *l) {
     while (next_token(l, &t)) {
         da_append(tokens, t);
     }
+    t.lexeme = SV("EOF");
+    t.loc.filename = l->filename;
+    t.loc.line = l->line;
+    t.loc.col = 0;
+    t.type = TK_EOF;
+    da_append(tokens, t);
 
     return tokens;
 }
