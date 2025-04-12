@@ -12,6 +12,7 @@
 
 static bool DEBUG_PRINT = false;
 
+
 // TODO:Implement every expression parsing for C:
 // expression     → equality ;
 // equality       → comparison ( ( "!=" | "==" ) comparison )* ;
@@ -93,7 +94,7 @@ static bool DEBUG_PRINT = false;
  * --------------------+-----------------------------------+-----------
  *
  * --------------------+-----------------------------------+-----------
- * Primary             | IDENTS NUMBERS (expr)             | -
+ * Primary             | IDENTS NUMBERS STRINGS CHARS (expr) | -
  * --------------------+-----------------------------------+-----------
  */
 
@@ -253,6 +254,7 @@ typedef struct Binary_expression Binary_expression;
 typedef struct Primary_expression Primary_expression;
 typedef struct Literal Literal;
 typedef enum   Literal_kind Literal_kind;
+typedef enum   Primary_expression_kind Primary_expression_kind;
 
 struct Literal {
     union {
@@ -263,6 +265,8 @@ struct Literal {
         char *str;
     } as;
 };
+
+void print_literal(FILE *f, Literal value, Literal_kind kind);
 
 enum Literal_kind {
     LIT_FLOAT,
@@ -286,9 +290,17 @@ struct Binary_expression {
     Expression *rhs;
 };
 
+enum Primary_expression_kind {
+    PRIMARY_VALUE,
+    PRIMARY_IDENT,
+    PRIMARY_COUNT,
+};
+
 struct Primary_expression {
+    Primary_expression_kind kind;
     Literal value;
     Literal_kind value_kind;
+    int identifier_id;
 };
 
 void print_primary_expression(FILE *f, Primary_expression *pe);
@@ -313,6 +325,24 @@ struct Expression {
 void print_expression_as_value(FILE *f, Expression e);
 void print_expression(FILE *f, Expression e);
 
+///
+
+/// Identifiers
+
+typedef struct {
+    String_view name;
+    Literal value;
+    Literal_kind value_kind;
+    bool value_set;
+} Identifier;
+
+typedef struct {
+    Identifier *items;
+    size_t count;
+    size_t capacity;
+} Identifiers;
+
+static Identifiers identifiers = {0};
 ///
 
 void usage(const char *program) {
@@ -346,6 +376,19 @@ void print_loc(FILE *f, Location loc) {
 bool token_is_number(Token t) {
     return t.type == TK_INT || t.type == TK_FLOAT;
 }
+
+void print_literal(FILE *f, Literal value, Literal_kind kind) {
+    switch (kind) {
+        case LIT_FLOAT:  fprintf(f, "%f", value.as.f); break;
+        case LIT_INT:    fprintf(f, "%d", value.as.i); break;
+        case LIT_BOOL:   fprintf(f, "%s", value.as.b ? "true" : "false"); break;
+        case LIT_CHAR:   fprintf(f, "'%c'", value.as.ch); break;
+        case LIT_STRING: fprintf(f, "\"%s\"", value.as.str); break;
+        case LIT_COUNT:
+        default: ASSERT(false, "UNREACHABLE!");
+    }
+}
+
 const char *lit_kind_as_str(Literal_kind k) {
     switch (k) {
         case LIT_FLOAT: return "FLOAT";
@@ -372,14 +415,20 @@ const char *expression_kind_as_str(Expression_kind k) {
 }
 
 void print_primary_expression(FILE *f, Primary_expression *pe) {
-    switch (pe->value_kind) {
-        case LIT_FLOAT:  fprintf(f, "%f", pe->value.as.f); break;
-        case LIT_INT:    fprintf(f, "%d", pe->value.as.i); break;
-        case LIT_BOOL:   fprintf(f, "%s", pe->value.as.b ? "true" : "false"); break;
-        case LIT_CHAR:   fprintf(f, "'%c'", pe->value.as.ch); break;
-        case LIT_STRING: fprintf(f, "\"%s\"", pe->value.as.str); break;
-        case LIT_COUNT:
-        default: ASSERT(false, "UNREACHABLE!");
+    if (pe->kind == PRIMARY_VALUE) {
+        print_literal(f, pe->value, pe->value_kind);
+    } else if (pe->kind == PRIMARY_IDENT) {
+        ASSERT(0 <= pe->identifier_id && (size_t)pe->identifier_id <= identifiers.count-1, "outofbounds");
+        Identifier ident = identifiers.items[pe->identifier_id];
+
+        fprintf(f, "[IDENT] '"SV_FMT"': ", SV_ARG(ident.name));
+        if (ident.value_set) {
+            print_literal(f, ident.value, ident.value_kind);
+        } else {
+            fprintf(f, "<NOTSET>");
+        }
+    } else {
+        ASSERT(false, "UNREACHABLE!");
     }
 }
 
@@ -605,7 +654,19 @@ Expression *primary(Arena *arena, Parser *p) {
         expr->kind = EXPR_PRIMARY;
         expr->loc = t.loc;
         expr->prim_expr = (Primary_expression *)arena_alloc(arena, sizeof(Primary_expression));
-        if (token_is_number(t)) {
+        expr->prim_expr->kind = PRIMARY_VALUE;
+        if (t.type == TK_IDENT) {
+            // TODO: I guess we should check if the identifier has any value set here?
+            Identifier ident = {
+                .name = t.lexeme,
+            };
+
+            expr->prim_expr->identifier_id = identifiers.count;
+            expr->prim_expr->kind = PRIMARY_IDENT;
+            da_append(identifiers, ident);
+
+            return expr;
+        } else if (token_is_number(t)) {
             if (t.type == TK_INT) {
                 int i_count = -1;
                 int i = sv_to_int(t.lexeme, &i_count, 10);
