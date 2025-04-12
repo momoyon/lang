@@ -158,7 +158,7 @@ typedef struct {
 } Parser;
 
 Parser make_parser(Tokens tokens);
-bool parser_match_token(Parser *p, const Token_type t);
+bool parser_match(Parser *p, const Token_type t);
 bool parser_check_token(Parser *p, const Token_type t);
 Token parser_advance(Parser *p);
 Token parser_previous(Parser *p);
@@ -314,7 +314,10 @@ void print_expression_as_value(FILE *f, Expression e) {
 
         } break;
         case EXPR_UNARY: {
-            ASSERT(false, "UNIMPLEMENTED!");
+            fprintf(f, " %s ", token_type_as_str(e.unary_expr->operator.type));
+            fprintf(f, "(");
+            print_expression_as_value(f, *e.unary_expr->operand);
+            fprintf(f, ")");
         } break;
         case EXPR_PRIMARY: {
             print_primary_expression(f, e.prim_expr);
@@ -340,19 +343,19 @@ void print_expression(FILE *f, Expression e) {
  *  v
  * HIGH
  *
- * NAME         | OP             | ASSOCIATE
- * -------------+----------------+-----------
- * Equality     | == !=          | Left
- * -------------+----------------+-----------
- * Comparision  | > >= < <=      | Left
- * -------------+----------------+-----------
- * Term         | - +            | Left
- * -------------+----------------+-----------
- * Factor       | / *            | Left
- * -------------+----------------+-----------
- * Unary        | ! -            | Right
- * -------------+----------------+-----------
- * Primary      | NUMBERS (expr) | -
+ * NAME         | OP                    | ASSOCIATE
+ * -------------+-----------------------+-----------
+ * Equality     | == !=                 | Left
+ * -------------+-----------------------+-----------
+ * Comparision  | > >= < <=             | Left
+ * -------------+-----------------------+-----------
+ * Term         | - +                   | Left
+ * -------------+-----------------------+-----------
+ * Factor       | / *                   | Left
+ * -------------+-----------------------+-----------
+ * Unary        | ! -                   | Right
+ * -------------+-----------------------+-----------
+ * Primary      | IDENTS NUMBERS (expr) | -
  *
  */
 
@@ -365,52 +368,52 @@ const char *token_type_as_str(Token_type t) {
         case TK_STRING: return "STRING";
         case TK_BOOL: return "BOOL";
         case TK_NULL: return "NULL";
-        case TK_LEFT_PAREN: return "LEFT_PAREN";
-        case TK_RIGHT_PAREN: return "RIGHT_PAREN";
-        case TK_MINUS: return "MINUS";
-        case TK_MINUS_MINUS: return "MINUS_MINUS";
-        case TK_MINUS_EQUAL: return "MINUS_EQUAL";
-        case TK_PLUS: return "PLUS";
-        case TK_PLUS_PLUS: return "PLUS_PLUS";
-        case TK_PLUS_EQUAL: return "PLUS_EQUAL";
-        case TK_RETURNER: return "RETURNER";
-        case TK_LEFT_BRACE: return "LEFT_BRACE";
-        case TK_RIGHT_BRACE: return "RIGHT_BRACE";
+        case TK_LEFT_PAREN: return "(";
+        case TK_RIGHT_PAREN: return ")";
+        case TK_MINUS: return "-";
+        case TK_MINUS_MINUS: return "--";
+        case TK_MINUS_EQUAL: return "-=";
+        case TK_PLUS: return "+";
+        case TK_PLUS_PLUS: return "++";
+        case TK_PLUS_EQUAL: return "+=";
+        case TK_RETURNER: return "->";
+        case TK_LEFT_BRACE: return "{";
+        case TK_RIGHT_BRACE: return "}";
         case TK_DIVIDE: return "/";
-        case TK_DIVIDE_EQUAL: return "DIVIDE_EQUAL";
+        case TK_DIVIDE_EQUAL: return "/=";
         case TK_MULTIPLY: return "*";
-        case TK_MULTIPLY_EQUAL: return "MULTIPLY_EQUAL";
-        case TK_MODULUS: return "MODULUS";
-        case TK_MODULUS_EQUAL: return "MODULUS_EQUAL";
-        case TK_POWER: return "POWER";
-        case TK_EQUAL: return "EQUAL";
-        case TK_NOT: return "NOT";
-        case TK_NOT_EQUAL: return "NOT_EQUAL";
-        case TK_EQUAL_EQUAL: return "EQUAL_EQUAL";
-        case TK_GT: return "GT";
-        case TK_LT: return "LT";
-        case TK_GTE: return "GTE";
-        case TK_LTE: return "LTE";
-        case TK_COMMA: return "COMMA";
-        case TK_COLON: return "COLON";
-        case TK_SEMICOLON: return "SEMICOLON";
-        case TK_DOT: return "DOT";
-        case TK_HASH: return "HASH";
-        case TK_LEFT_SQUARE_BRACE: return "LEFT_SQUARE_BRACE";
-        case TK_RIGHT_SQUARE_BRACE: return "RIGHT_SQUARE_BRACE";
+        case TK_MULTIPLY_EQUAL: return "*=";
+        case TK_MODULUS: return "%";
+        case TK_MODULUS_EQUAL: return "%=";
+        case TK_POWER: return "**";
+        case TK_EQUAL: return "=";
+        case TK_NOT: return "!";
+        case TK_NOT_EQUAL: return "!=";
+        case TK_EQUAL_EQUAL: return "==";
+        case TK_GT: return ">";
+        case TK_LT: return "<";
+        case TK_GTE: return ">=";
+        case TK_LTE: return "<=";
+        case TK_COMMA: return ",";
+        case TK_COLON: return ":";
+        case TK_SEMICOLON: return ";";
+        case TK_DOT: return ".";
+        case TK_HASH: return "#";
+        case TK_LEFT_SQUARE_BRACE: return "[";
+        case TK_RIGHT_SQUARE_BRACE: return "]";
         case TK_INT: return "INT";
         case TK_FLOAT: return "FLOAT";
-        case TK_BITWISE_AND: return "BITWISE_AND";
-        case TK_BITWISE_AND_EQUAL: return "BITWISE_AND_EQUAL";
-        case TK_BITWISE_NOT: return "BITWISE_NOT";
-        case TK_BITWISE_OR: return "BITWISE_OR";
-        case TK_BITWISE_OR_EQUAL: return "BITWISE_OR_EQUAL";
-        case TK_BITWISE_XOR: return "BITWISE_XOR";
-        case TK_BITWISE_XOR_EQUAL: return "BITWISE_XOR_EQUAL";
-        case TK_BITWISE_SHIFT_LEFT: return "BITWISE_SHIFT_LEFT";
-        case TK_BITWISE_SHIFT_RIGHT: return "BITWISE_SHIFT_RIGHT";
-        case TK_LOGICAL_AND: return "LOGICAL_AND";
-        case TK_LOGICAL_OR: return "LOGICAL_OR";
+        case TK_BITWISE_AND: return "&";
+        case TK_BITWISE_AND_EQUAL: return "&=";
+        case TK_BITWISE_NOT: return "~";
+        case TK_BITWISE_OR: return "|";
+        case TK_BITWISE_OR_EQUAL: return "|=";
+        case TK_BITWISE_XOR: return "^";
+        case TK_BITWISE_XOR_EQUAL: return "^=";
+        case TK_BITWISE_SHIFT_LEFT: return "<<";
+        case TK_BITWISE_SHIFT_RIGHT: return ">>";
+        case TK_LOGICAL_AND: return "&&";
+        case TK_LOGICAL_OR: return "||";
         case TK_EOF: return "EOF";
         case TK_COUNT:
         default: {
@@ -489,7 +492,7 @@ void print_token(FILE *f, Token t) {
     fprintf(f, " [%s] '"SV_FMT"'", token_type_as_str(t.type), SV_ARG(t.lexeme));
 }
 
-bool parser_match_token(Parser *p, const Token_type t) {
+bool parser_match(Parser *p, const Token_type t) {
     if (parser_check_token(p, t)) {
         parser_advance(p);
         return true;
@@ -570,7 +573,7 @@ Expression *primary(Arena *arena, Parser *p) {
         ASSERT(false, "UNIMPLEMENTED");
     } else if (t.type == TK_LEFT_PAREN) {
         /*parser_advance(p); // Skip (*/
-        Expression *expr = factor(arena, p);
+        Expression *expr = expression(arena, p);
         parser_advance(p); // Skip )
         return expr;
     }
@@ -581,11 +584,10 @@ Expression *primary(Arena *arena, Parser *p) {
 Expression *unary(Arena *arena, Parser *p) {
     Token t = parser_peek(p);
 
-    Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
-    expr->loc = t.loc;
-    expr->unary_expr = (Unary_expression *)arena_alloc(arena, sizeof(Unary_expression));
-
     if (t.type == TK_NOT || t.type == TK_MINUS) {
+        Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
+        expr->loc = t.loc;
+        expr->unary_expr = (Unary_expression *)arena_alloc(arena, sizeof(Unary_expression));
         expr->kind = EXPR_UNARY;
         Unary_expression *unary_expr = expr->unary_expr;
         unary_expr->operator = parser_advance(p);
@@ -599,7 +601,7 @@ Expression *unary(Arena *arena, Parser *p) {
 Expression *factor(Arena *arena, Parser *p) {
     Expression *expr = unary(arena, p);
 
-    while (parser_match_token(p, TK_DIVIDE) || parser_match_token(p, TK_MULTIPLY)) {
+    while (parser_match(p, TK_DIVIDE) || parser_match(p, TK_MULTIPLY)) {
         Token op = parser_previous(p);
         Expression *rhs = unary(arena, p);
 
@@ -618,62 +620,70 @@ Expression *factor(Arena *arena, Parser *p) {
 }
 
 Expression *term(Arena *arena, Parser *p) {
-    Tokens tokens = p->tokens;
-    Token t = da_shift(tokens);
+    Expression *expr = factor(arena, p);
 
-    Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
-    expr->loc = t.loc;
-    expr->bin_expr = (Binary_expression *)arena_alloc(arena, sizeof(Binary_expression));
+    while (parser_match(p, TK_MINUS) || parser_match(p, TK_PLUS)) {
+        Token operator = parser_previous(p);
 
-    if (t.type == TK_MINUS || t.type == TK_PLUS) {
-        expr->bin_expr->operator = t;
-        // TODO: Somehow i need to get the last expression parsed.
-        // bin_expr->lhs =
-        expr->bin_expr->rhs = expression(arena, p);
-        return expr;
+        Expression *rhs = factor(arena, p);
+
+        Expression *new_expr = (Expression *)arena_alloc(arena, sizeof(Expression));
+        new_expr->kind = EXPR_BINARY;
+        new_expr->loc = expr->loc;
+        new_expr->bin_expr = (Binary_expression *)arena_alloc(arena, sizeof(Binary_expression));
+        new_expr->bin_expr->lhs = expr;
+        new_expr->bin_expr->operator = operator;
+        new_expr->bin_expr->rhs = rhs;
+
+        expr = new_expr;
     }
 
-    return factor(arena, p);
+    return expr;
 }
 
 Expression *comparision(Arena *arena, Parser *p) {
-    Tokens tokens = p->tokens;
-    Token t = da_shift(tokens);
+    Expression *expr = term(arena, p);
 
-    Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
-    expr->loc = t.loc;
-    expr->bin_expr = (Binary_expression *)arena_alloc(arena, sizeof(Binary_expression));
+    while (parser_match(p, TK_GT) || parser_match(p, TK_GTE) ||
+           parser_match(p, TK_LT) || parser_match(p, TK_LTE)) {
+        Token operator = parser_previous(p);
 
-    if (t.type == TK_GT || t.type == TK_GTE ||
-        t.type == TK_LT || t.type == TK_LTE) {
-        expr->bin_expr->operator = t;
-        // TODO: Somehow i need to get the last expression parsed.
-        // bin_expr->lhs =
-        expr->bin_expr->rhs = expression(arena, p);
-        return expr;
+        Expression *rhs = term(arena, p);
+
+        Expression *new_expr = (Expression *)arena_alloc(arena, sizeof(Expression));
+        new_expr->kind = EXPR_BINARY;
+        new_expr->loc = expr->loc;
+        new_expr->bin_expr = (Binary_expression *)arena_alloc(arena, sizeof(Binary_expression));
+        new_expr->bin_expr->lhs = expr;
+        new_expr->bin_expr->operator = operator;
+        new_expr->bin_expr->rhs = rhs;
+
+        expr = new_expr;
     }
 
-    return term(arena, p);
+    return expr;
 }
 
 Expression *equality(Arena *arena, Parser *p) {
-    Tokens tokens = p->tokens;
-    Token t = da_shift(tokens);
+    Expression *expr = comparision(arena, p);
 
-    Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
-    expr->loc = t.loc;
-    expr->bin_expr = (Binary_expression *)arena_alloc(arena, sizeof(Binary_expression));
+    while (parser_match(p, TK_NOT_EQUAL) || parser_match(p, TK_EQUAL_EQUAL)) {
+        Token operator = parser_previous(p);
 
-    if (t.type == TK_EQUAL_EQUAL || t.type == TK_NOT_EQUAL) {
-        expr->bin_expr->operator = t;
-        // TODO: Somehow i need to get the last expression parsed.
-        // bin_expr->lhs =
-        expr->bin_expr->rhs = expression(arena, p);
+        Expression *rhs = comparision(arena, p);
 
-        return expr;
+        Expression *new_expr = (Expression *)arena_alloc(arena, sizeof(Expression));
+        new_expr->kind = EXPR_BINARY;
+        new_expr->loc = expr->loc;
+        new_expr->bin_expr = (Binary_expression *)arena_alloc(arena, sizeof(Binary_expression));
+        new_expr->bin_expr->lhs = expr;
+        new_expr->bin_expr->operator = operator;
+        new_expr->bin_expr->rhs = rhs;
+
+        expr = new_expr;
     }
 
-    return comparision(arena, p);
+    return expr;
 }
 
 Expression *expression(Arena *arena, Parser *p) {
@@ -1316,7 +1326,7 @@ int main(int argc, char **argv) {
 
     Arena expr_arena = arena_make(0);
 
-    Expression *expr = factor(&expr_arena, &p);
+    Expression *expr = expression(&expr_arena, &p);
 
     print_expression(stdout, *expr); printf("\n");
 

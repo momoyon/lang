@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -Wextra -ggdb -I./include -fsanitize=address -Wswitch-enum
+CFLAGS=-Wall -Wextra -ggdb -I./include -Wswitch-enum
 LDFLAGS=-L./lib
 LIBS=
 
