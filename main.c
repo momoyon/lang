@@ -12,7 +12,7 @@
 
 static bool DEBUG_PRINT = false;
 
-// TODO:Implement every expression parsing for C: https://en.cppreference.com/w/c/language/operator_precedence
+// TODO:Implement every expression parsing for C:
 // expression     → equality ;
 // equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 // comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
@@ -22,6 +22,81 @@ static bool DEBUG_PRINT = false;
 //                | primary ;
 // primary        → NUMBER | STRING | "true" | "false" | "nil"
 //                | "(" expression ")" ;
+
+/* NOTE: We are referencing this table: https://en.cppreference.com/w/c/language/operator_precedence
+ * PRECEDENCE TABLE
+ *
+ * LOW
+ *  |
+ *  v
+ * HIGH
+ *
+ * NAME                | OP                                | ASSOCIATE
+ * --------------------+-----------------------------------+-----------
+ * Comma               | ,                                 | Left
+ * --------------------+-----------------------------------+-----------
+ * Bitwise Assignment  | &= |= ^=                          | Right
+ * --------------------+-----------------------------------+-----------
+ * Bitshift Assignment | <<= >>=                           | Right
+ * --------------------+-----------------------------------+-----------
+ * Factor Assignment   | /= *= %=                          | Right
+ * --------------------+-----------------------------------+-----------
+ * Term Assignment     | += -=                             | Right
+ * --------------------+-----------------------------------+-----------
+ * Simple Assignment   | =                                 | Right
+ * --------------------+-----------------------------------+-----------
+ * Ternary Condition   | ?:                                | Right
+ * --------------------+-----------------------------------+-----------
+ * Logical OR          | ||                                | Left
+ * --------------------+-----------------------------------+-----------
+ * Logical AND         | &&                                | Left
+ * --------------------+-----------------------------------+-----------
+ * Bitwise OR          | |                                 | Left
+ * --------------------+-----------------------------------+-----------
+ * Bitwise XOR         | ^                                 | Left
+ * --------------------+-----------------------------------+-----------
+ * Bitwise AND         | &                                 | Left
+ * --------------------+-----------------------------------+-----------
+ * Equality            | == !=                             | Left
+ * --------------------+-----------------------------------+-----------
+ * Comparision         | > >= < <=                         | Left
+ * --------------------+-----------------------------------+-----------
+ * Bit shift           | << >>                             | Left
+ * --------------------+-----------------------------------+-----------
+ * Term                | - +                               | Left
+ * --------------------+-----------------------------------+-----------
+ * Factor              | / * %                             | Left
+ * --------------------+-----------------------------------+-----------
+ * sizeof              | sizeof                            | Right
+ * --------------------+-----------------------------------+-----------
+ * Address-of          | &                                 | Right
+ * --------------------+-----------------------------------+-----------
+ * Dereference         | *                                 | Right
+ * --------------------+-----------------------------------+-----------
+ * Cast                | (type)                            | Right
+ * --------------------+-----------------------------------+-----------
+ * L/B NOT             | ! ~                               | Right
+ * --------------------+-----------------------------------+-----------
+ * Unary Plus/Minus    | + -                               | Right
+ * --------------------+-----------------------------------+-----------
+ * Prefix Inc/Dec      | ++ --                             | Right
+ * --------------------+-----------------------------------+-----------
+ * Compound Lit        | (type){list}                      | Left
+ * --------------------+-----------------------------------+-----------
+ * Struct/Union access | .                                 | Left      NOTE: We use . to access through pointers as well
+ * --------------------+-----------------------------------+-----------
+ * Array Subscripting  | []                                | Left
+ * --------------------+-----------------------------------+-----------
+ * Function Call       | ()                                | Left
+ * --------------------+-----------------------------------+-----------
+ * Suffix Inc/Dec      | ++ --                             | Left
+ * --------------------+-----------------------------------+-----------
+ *
+ * --------------------+-----------------------------------+-----------
+ * Primary             | IDENTS NUMBERS (expr)             | -
+ * --------------------+-----------------------------------+-----------
+ */
+
 
 /// NOTE: Location
 typedef struct {
@@ -339,30 +414,6 @@ void print_expression(FILE *f, Expression e) {
     fprintf(f, "'");
 }
 
-
-/*
- * PRECEDENCE TABLE
- *
- * LOW
- *  |
- *  v
- * HIGH
- *
- * NAME         | OP                    | ASSOCIATE
- * -------------+-----------------------+-----------
- * Equality     | == !=                 | Left
- * -------------+-----------------------+-----------
- * Comparision  | > >= < <=             | Left
- * -------------+-----------------------+-----------
- * Term         | - +                   | Left
- * -------------+-----------------------+-----------
- * Factor       | / *                   | Left
- * -------------+-----------------------+-----------
- * Unary        | ! -                   | Right
- * -------------+-----------------------+-----------
- * Primary      | IDENTS NUMBERS (expr) | -
- *
- */
 
 const char *token_type_as_str(Token_type t) {
     switch (t) {
@@ -702,7 +753,8 @@ Expression *equality(Arena *arena, Parser *p) {
 }
 
 Expression *expression(Arena *arena, Parser *p) {
-    return equality(arena, p);
+    Expression *expr = equality(arena, p);
+    return expr;
 }
 
 Lexer make_lexer(const char *filename) {
@@ -1392,6 +1444,11 @@ int main(int argc, char **argv) {
     Arena expr_arena = arena_make(0);
 
     Expression *expr = expression(&expr_arena, &p);
+
+    if (!parser_match(&p, TK_SEMICOLON)) {
+        compiler_error(parser_previous(&p).loc, "Expected semicolon but got '%s'", token_type_as_str(parser_previous(&p).type));
+        return 1;
+    }
 
     print_expression(stdout, *expr); printf("\n");
 
