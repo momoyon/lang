@@ -8,7 +8,7 @@
 #define error log_error
 #define info log_info
 
-#define COMPILER_VERSION "v0.0.5"
+#define COMPILER_VERSION "v0.0.6"
 
 static bool DEBUG_PRINT = false;
 
