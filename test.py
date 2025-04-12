@@ -342,7 +342,7 @@ def main():
                     m = ''
                     if res.stderr:
                         m += f"{res.stderr}"
-                    logger.error("[FAILED] {m}")
+                    logger.error(f"[FAILED] {m}")
 
                     if stop_on_error: exit(1)
                     else: continue

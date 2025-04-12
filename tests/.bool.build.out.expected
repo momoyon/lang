@@ -1,2 +1,3 @@
 bool.momo:1:0 [BOOL] 'true'
 bool.momo:2:0 [BOOL] 'false'
+bool.momo:3:0 [EOF] 'EOF'
