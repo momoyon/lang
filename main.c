@@ -12,6 +12,7 @@
 
 static bool DEBUG_PRINT = false;
 
+// TODO:Implement every expression parsing for C: https://en.cppreference.com/w/c/language/operator_precedence
 // expression     → equality ;
 // equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 // comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
