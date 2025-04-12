@@ -241,7 +241,7 @@ void print_expression(FILE *f, Expression e);
 ///
 
 void usage(const char *program) {
-    info("Usage: %s [flag(s)] <file>", program);
+    info("Usage: %s [subcommand] [flag(s)] <file>", program);
 }
 
 void help(const char *program) {
@@ -249,9 +249,11 @@ void help(const char *program) {
 
     info("");
     info("Flags: ");
-    info("  -h      Prints this help message.");
-    info("  -v      Prints the version of the compiler.");
-    info("  -d      Enables debug printing.");
+    info("  -h           Prints this help message.");
+    info("  -v           Prints the version of the compiler.");
+    info("Subcommands: ");
+    info("  help         Prints this help message.");
+    info("  dump_tokens  Dumps the tokens scanned and exit.");
 }
 
 void print_loc(FILE *f, Location loc) {
@@ -1326,53 +1328,64 @@ typedef struct {
 int main(int argc, char **argv) {
     const char *program = shift_args(argv, argc);
 
-    Flags flags = {0};
-
     const char *filename = NULL;
+
+    bool dump_tokens = false;
+
     while (argc > 0) {
         const char *arg = shift_args(argv, argc);
 
-        if (*arg == '-' || *arg == '/') {
-            const char *flag = arg; // Including the prefix
+        if (*arg == '-') {
+            const char *flag = arg+1;
+            // TODO: We only support single char flags for now, eg: -h, -V
+            if (*flag == '-') {
+                log_error("We only support single char flags for now!");
+                return 1;
+            } else if (*flag == 'h') {
+                help(program);
+                return 0;
+            } else if (*flag == 'v') {
+                log_info("Compiler Version: %s", COMPILER_VERSION);
+                return 0;
+            } else {
+                log_error("Invalid flag `%s`", flag);
+                return 1;
+            }
 
-            da_append(flags, flag);
         } else {
-            filename = arg;
-        }
-    }
-
-    // Parse flags
-    for (size_t i = 0; i < flags.count; ++i) {
-        const char *flag = flags.items[i];
-
-        char prefix = *flag;
-
-        flag += 1; // Remove prefix
-
-        if (strcmp(flag, "h") == 0) {
-            help(program);
-            exit(0);
-        } else if (strcmp(flag, "v") == 0) {
-            info("Compiler Version: "COMPILER_VERSION);
-            exit(0);
-        } else if (strcmp(flag, "d") == 0) {
-            DEBUG_PRINT = true;
-        } else {
-            error("Invalid flag '%c%s'...", prefix, flag);
-            exit(1);
+            if (strcmp(arg, "help") == 0) {
+                help(program);
+                return 0;
+            } else if (strcmp(arg, "dump_tokens") == 0) {
+                dump_tokens = true;
+            } else {
+                if (filename == NULL) {
+                    filename = arg;
+                } else {
+                    log_error("Invalid subcommand `%s`", arg);
+                    return 1;
+                }
+            }
         }
     }
 
     if (filename == NULL) {
         error("Please provide a filename!");
         usage(program);
-        da_free(flags);
         return 1;
     }
 
     Lexer l = make_lexer(filename);
 
     Tokens tokens = lex(&l);
+
+    if (dump_tokens) {
+        for (size_t i = 0; i < tokens.count; ++i) {
+            print_token(stdout, tokens.items[i]);
+            printf("\n");
+        }
+        return 0;
+    }
 
     Parser p = make_parser(tokens);
 
@@ -1385,6 +1398,5 @@ int main(int argc, char **argv) {
     arena_free(&expr_arena);
     free_parser(&p);
     free_lexer(&l);
-    da_free(flags);
     return 0;
 }
