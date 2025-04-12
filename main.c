@@ -43,6 +43,7 @@ typedef enum {
     TK_MULTILINE_COMMENT,
 
     TK_STRING,
+    TK_CHAR,
 
     TK_BOOL,
     TK_NULL,
@@ -142,6 +143,7 @@ char next_char(Lexer *l);
 char consume_char(Lexer *l);
 void consume_ident(Lexer *l, String_view *ident_sv_out, Location *loc_out);
 void consume_string(Lexer *l, String_view *string_sv_out, Location *loc_out);
+void consume_character(Lexer *l, String_view *char_sv_out, Location *loc_out);
 void consume_single_char(Lexer *l, String_view *sv_out, Location *loc_out);
 void consume_number(Lexer *l, String_view *sv_out, Location *loc_out);
 void consume_comment(Lexer *l, String_view *sv_out, Location *loc_out);
@@ -296,8 +298,8 @@ void print_primary_expression(FILE *f, Primary_expression *pe) {
         case LIT_FLOAT:  fprintf(f, "%f", pe->value.as.f); break;
         case LIT_INT:    fprintf(f, "%d", pe->value.as.i); break;
         case LIT_BOOL:   fprintf(f, "%s", pe->value.as.b ? "true" : "false"); break;
-        case LIT_CHAR:   fprintf(f, "%c", pe->value.as.ch); break;
-        case LIT_STRING: fprintf(f, "%s", pe->value.as.str); break;
+        case LIT_CHAR:   fprintf(f, "'%c'", pe->value.as.ch); break;
+        case LIT_STRING: fprintf(f, "\"%s\"", pe->value.as.str); break;
         case LIT_COUNT:
         default: ASSERT(false, "UNREACHABLE!");
     }
@@ -366,8 +368,9 @@ const char *token_type_as_str(Token_type t) {
         case TK_COMMENT: return "COMMENT";
         case TK_MULTILINE_COMMENT: return "MULTILINE_COMMENT";
         case TK_STRING: return "STRING";
+        case TK_CHAR: return "CHAR";
         case TK_BOOL: return "BOOL";
-        case TK_NULL: return "NULL";
+        case TK_NULL: return "null";
         case TK_LEFT_PAREN: return "(";
         case TK_RIGHT_PAREN: return ")";
         case TK_MINUS: return "-";
@@ -543,42 +546,51 @@ Expression *primary(Arena *arena, Parser *p) {
     // NOTE: We can advance here because primary is the last rule
     Token t = parser_advance(p);
 
-    if (token_is_number(t)) {
+    if (t.type != TK_LEFT_PAREN) {
         Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
         expr->kind = EXPR_PRIMARY;
         expr->loc = t.loc;
         expr->prim_expr = (Primary_expression *)arena_alloc(arena, sizeof(Primary_expression));
-        if (t.type == TK_INT) {
-            int i_count = -1;
-            int i = sv_to_int(t.lexeme, &i_count, 10);
-            ASSERT(i_count != -1, "We made a mistake in lexing of integers!");
-            expr->prim_expr->value.as.i = i;
-            expr->prim_expr->value_kind = LIT_INT;
-            return expr;
-        } else if (t.type == TK_FLOAT) {
-            int f_count = -1;
-            float f = sv_to_float(t.lexeme, &f_count);
-            ASSERT(f_count != -1, "We made a mistake in lexing of floats!");
-            expr->prim_expr->value.as.f = f;
-            expr->prim_expr->value_kind = LIT_FLOAT;
-            return expr;
-        } else {
+        if (token_is_number(t)) {
+            if (t.type == TK_INT) {
+                int i_count = -1;
+                int i = sv_to_int(t.lexeme, &i_count, 10);
+                ASSERT(i_count != -1, "We made a mistake in lexing of integers!");
+                expr->prim_expr->value.as.i = i;
+                expr->prim_expr->value_kind = LIT_INT;
+                return expr;
+            } else if (t.type == TK_FLOAT) {
+                int f_count = -1;
+                float f = sv_to_float(t.lexeme, &f_count);
+                ASSERT(f_count != -1, "We made a mistake in lexing of floats!");
+                expr->prim_expr->value.as.f = f;
+                expr->prim_expr->value_kind = LIT_FLOAT;
+                return expr;
+            } else {
 
+            }
+        } else if (t.type == TK_STRING) {
+            expr->prim_expr->value_kind = LIT_STRING;
+            expr->prim_expr->value.as.str = sv_to_cstr(t.lexeme);
+            return expr;
+        } else if (t.type == TK_CHAR) {
+            expr->prim_expr->value_kind = LIT_CHAR;
+            expr->prim_expr->value.as.ch = *t.lexeme.data;
+            return expr;
+        } else if (t.type == TK_BOOL) {
+            expr->prim_expr->value_kind = LIT_BOOL;
+            expr->prim_expr->value.as.b = sv_equals(t.lexeme, SV("true"));
+            return expr;
         }
-    } else if (t.type == TK_STRING) {
-        ASSERT(false, "UNIMPLEMENTED");
-    } else if (t.type == TK_BOOL) {
-        ASSERT(false, "UNIMPLEMENTED");
-    } else if (t.type == TK_NULL) {
-        ASSERT(false, "UNIMPLEMENTED");
-    } else if (t.type == TK_LEFT_PAREN) {
+    } else {
         /*parser_advance(p); // Skip (*/
         Expression *expr = expression(arena, p);
         parser_advance(p); // Skip )
         return expr;
     }
-    print_token(stdout, t); printf("\n");
-    ASSERT(false, "UNREACHABLE!");
+
+    compiler_error(t.loc, "Expected expression, but got `%s`", token_type_as_str(t.type));
+    return NULL;
 }
 
 Expression *unary(Arena *arena, Parser *p) {
@@ -828,6 +840,35 @@ void consume_string(Lexer *l, String_view *string_sv_out, Location *loc_out) {
     consume_char(l);
 }
 
+void consume_character(Lexer *l, String_view *char_sv_out, Location *loc_out) {
+    ASSERT(current_char(l) == '\'', "We except '\'' to be the current_char here...");
+
+    // Eat '
+    consume_char(l);
+
+    String_view src_copy = get_src_copy(l);
+
+    loc_out->filename = l->filename;
+    loc_out->line     = l->line;
+    loc_out->col      = col(l);
+
+    *char_sv_out = sv_lpop(&src_copy, 1);
+
+    l->cur += 1;
+
+    if (current_char(l) != '\'') {
+        compiler_error(*loc_out, "Expected `'`, but got `%ch`", current_char(l));
+        exit(1);
+    }
+    if (eof(l)) {
+        compiler_error(*loc_out, "Unterminated char!"); 
+        exit(1);
+    }
+
+    // Eat '
+    consume_char(l);
+}
+
 void consume_single_char(Lexer *l, String_view *sv_out, Location *loc_out) {
 
     String_view src_copy = get_src_copy(l);
@@ -1045,6 +1086,16 @@ bool next_token(Lexer *l, Token *t_out) {
                 print_token(stdout, *t_out);
                 putc('\n', stdout);
             }
+
+            return true;
+        } break;
+        case '\'': {
+            String_view char_sv = {0};
+            Location char_loc = {0};
+            consume_character(l, &char_sv, &char_loc);
+            t_out->lexeme = char_sv;
+            t_out->loc    = char_loc;
+            t_out->type   = TK_CHAR;
 
             return true;
         } break;
