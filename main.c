@@ -540,12 +540,11 @@ Expression *primary(Arena *arena, Parser *p) {
     // NOTE: We can advance here because primary is the last rule
     Token t = parser_advance(p);
 
-    Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
-    expr->kind = EXPR_PRIMARY;
-    expr->loc = t.loc;
-    expr->prim_expr = (Primary_expression *)arena_alloc(arena, sizeof(Primary_expression));
-
     if (token_is_number(t)) {
+        Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
+        expr->kind = EXPR_PRIMARY;
+        expr->loc = t.loc;
+        expr->prim_expr = (Primary_expression *)arena_alloc(arena, sizeof(Primary_expression));
         if (t.type == TK_INT) {
             int i_count = -1;
             int i = sv_to_int(t.lexeme, &i_count, 10);
@@ -569,9 +568,13 @@ Expression *primary(Arena *arena, Parser *p) {
         ASSERT(false, "UNIMPLEMENTED");
     } else if (t.type == TK_NULL) {
         ASSERT(false, "UNIMPLEMENTED");
+    } else if (t.type == TK_LEFT_PAREN) {
+        /*parser_advance(p); // Skip (*/
+        Expression *expr = factor(arena, p);
+        parser_advance(p); // Skip )
+        return expr;
     }
-    // TODO: Else Grouping
-    //
+    print_token(stdout, t); printf("\n");
     ASSERT(false, "UNREACHABLE!");
 }
 
@@ -594,8 +597,6 @@ Expression *unary(Arena *arena, Parser *p) {
 }
 
 Expression *factor(Arena *arena, Parser *p) {
-    Token t = parser_peek(p);
-
     Expression *expr = unary(arena, p);
 
     while (parser_match_token(p, TK_DIVIDE) || parser_match_token(p, TK_MULTIPLY)) {
