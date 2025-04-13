@@ -73,6 +73,7 @@
 #define sv_contains_char c_sv_contains_char
 #define sv_is_hex_numbers c_sv_is_hex_numbers
 #define sv_equals c_sv_equals
+#define sv_get_part c_sv_get_part
 
 
 #endif // COMMONLIB_REMOVE_PREFIX
@@ -125,6 +126,13 @@ typedef const wchar* wstr;
 
 #define c_shift(xs, xsz) (assert(xsz > 0 && "Array is empty"), xsz--, *xs++)
 #define c_shift_args c_shift
+
+//
+// Math
+//
+
+int clampi(int v, int min, int max);
+float clampf(float v, float min, float max);
 
 //
 // Struct pre-decls
@@ -287,6 +295,7 @@ float64 c_sv_to_float(c_String_view sv, int *count);
 bool c_sv_contains_char(c_String_view sv, char ch);
 bool c_sv_is_hex_numbers(c_String_view sv);
 bool c_sv_equals(c_String_view sv1, c_String_view sv2);
+c_String_view c_sv_get_part(c_String_view sv, int from, int to);
 
 #endif /* _COMMONLIB_H_ */
 
@@ -298,6 +307,22 @@ bool c_sv_equals(c_String_view sv1, c_String_view sv2);
 #include <assert.h>
 
 // My things implementation:
+
+//
+// Math
+//
+
+int clampi(int v, int min, int max) {
+    v = v < min ? min : v;
+    v = v > max ? max : v;
+    return v;
+}
+
+float clampf(float v, float min, float max) {
+    v = v < min ? min : v;
+    v = v > max ? max : v;
+    return v;
+}
 
 //
 // OS
@@ -702,4 +727,15 @@ bool c_sv_equals(c_String_view sv1, c_String_view sv2) {
     return true;
 }
 
+c_String_view c_sv_get_part(c_String_view sv, int from, int to) {
+    from = clampi(from, 0, sv.count);
+    to   = clampi(to, from, sv.count);
+
+    String_view range = {
+        .data = (char*)(sv.data + from),
+        .count = (size_t)(to - from),
+    };
+
+    return range;
+}
 #endif
