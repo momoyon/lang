@@ -372,7 +372,13 @@ void print_loc(FILE *f, Location loc) {
         putc(' ', stderr);\
         error(fmt, ##__VA_ARGS__);\
     } while (0)
-
+/**/
+/*#define error_pretty(loc, lexer, fmt, ...) do {\*/
+/*        print_loc(stderr, loc);\*/
+/*        putc(' ', stderr);\*/
+/*        error(fmt, ##__VA_ARGS__);\*/
+/**/
+/*    } while (0)*/
 
 bool token_is_number(Token t) {
     return t.type == TK_INT || t.type == TK_FLOAT;
@@ -1497,6 +1503,17 @@ int main(int argc, char **argv) {
     Lexer l = make_lexer(filename);
 
     Tokens tokens = lex(&l);
+
+    log_info("Lexer.col: %d, ", col(&l));
+    log_info("Lexer.bol: %d, ", l.bol);
+    log_info("Lexer.cur: %d, ", l.cur);
+    log_info("Lexer.line: %d, ", l.line);
+
+    sv_print_range(l.src, stdout, 0, 2);
+    printf("\n");
+
+    return 0;
+
 
     if (dump_tokens) {
         for (size_t i = 0; i < tokens.count; ++i) {
