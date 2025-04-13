@@ -5,13 +5,15 @@
 #define COMMONLIB_REMOVE_PREFIX
 #include <commonlib.h>
 
+#define STB_DS_IMPLEMENTATION
+#include "stb_ds.h"
+
 #define error log_error
 #define info log_info
 
 #define COMPILER_VERSION "v0.0.6"
 
 static bool DEBUG_PRINT = false;
-
 
 // TODO:Implement every expression parsing for C:
 // expression     → equality ;
@@ -300,7 +302,7 @@ struct Primary_expression {
     Primary_expression_kind kind;
     Literal value;
     Literal_kind value_kind;
-    int identifier_id;
+    String_view identifier_key;
 };
 
 void print_primary_expression(FILE *f, Primary_expression *pe);
@@ -333,16 +335,15 @@ typedef struct {
     String_view name;
     Literal value;
     Literal_kind value_kind;
-    bool value_set;
 } Identifier;
 
 typedef struct {
-    Identifier *items;
-    size_t count;
-    size_t capacity;
-} Identifiers;
+    String_view key;
+    Identifier value;
+} Identifier_KV;
 
-static Identifiers identifiers = {0};
+static Identifier_KV *identifier_map = {0};
+
 ///
 
 void usage(const char *program) {
@@ -418,15 +419,15 @@ void print_primary_expression(FILE *f, Primary_expression *pe) {
     if (pe->kind == PRIMARY_VALUE) {
         print_literal(f, pe->value, pe->value_kind);
     } else if (pe->kind == PRIMARY_IDENT) {
-        ASSERT(0 <= pe->identifier_id && (size_t)pe->identifier_id <= identifiers.count-1, "outofbounds");
-        Identifier ident = identifiers.items[pe->identifier_id];
-
-        fprintf(f, "[IDENT] '"SV_FMT"': ", SV_ARG(ident.name));
-        if (ident.value_set) {
-            print_literal(f, ident.value, ident.value_kind);
-        } else {
-            fprintf(f, "<NOTSET>");
-        }
+        /*Identifier ident = identifiers.items[pe->identifier_id];*/
+        /**/
+        /*fprintf(f, "[IDENT] '"SV_FMT"': ", SV_ARG(ident.name));*/
+        /*if (ident.value_set) {*/
+        /*    print_literal(f, ident.value, ident.value_kind);*/
+        /*} else {*/
+        /*    fprintf(f, "<NOTSET>");*/
+        /*}*/
+        ASSERT(false, "UNREACHABLE!");
     } else {
         ASSERT(false, "UNREACHABLE!");
     }
@@ -656,16 +657,21 @@ Expression *primary(Arena *arena, Parser *p) {
         expr->prim_expr = (Primary_expression *)arena_alloc(arena, sizeof(Primary_expression));
         expr->prim_expr->kind = PRIMARY_VALUE;
         if (t.type == TK_IDENT) {
-            // TODO: I guess we should check if the identifier has any value set here?
-            Identifier ident = {
-                .name = t.lexeme,
-            };
+            Identifier_KV *ident_kv = hmgetp_null(identifier_map, t.lexeme);
+            if (ident_kv == NULL) {
+                compiler_error(t.loc, "Undeclared identifier `"SV_FMT"`", SV_ARG(t.lexeme));
+                return NULL;
+            }
 
-            expr->prim_expr->identifier_id = identifiers.count;
+            Identifier ident = ident_kv->value;
+
+            expr->prim_expr->identifier_key = t.lexeme;
+            expr->prim_expr->value = ident.value;
+            expr->prim_expr->value_kind = ident.value_kind;
             expr->prim_expr->kind = PRIMARY_IDENT;
-            da_append(identifiers, ident);
 
             return expr;
+            ASSERT(false, "UNIMPLEMENTED!");
         } else if (token_is_number(t)) {
             if (t.type == TK_INT) {
                 int i_count = -1;
