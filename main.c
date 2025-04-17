@@ -203,11 +203,23 @@ typedef struct {
 /// NOTE: Lexer
 
 typedef struct {
+    size_t offset;
+    size_t count;
+} Line;
+
+typedef struct {
+    Line *items;
+    size_t count;
+    size_t capacity;
+} Lines;
+
+typedef struct {
     // NOTE: src gets data from a heap allocated string!!!
     String_view src;
     size_t cur;
     size_t bol; // Beginning of Line
     size_t line;
+    Lines lines;
     const char *filename;
 } Lexer;
 
@@ -1101,6 +1113,11 @@ void consume_comment(Lexer *l, String_view *sv_out, Location *loc_out) {
 void left_trim(Lexer *l) {
     while (!eof(l) && isspace(current_char(l))) {
         if (current_char(l) == '\n' || (current_char(l) == '\r' && next_char(l) == '\n')) {
+            Line line = {
+                .offset = l->bol,
+                .count = col(l),
+            };
+            da_append(l->lines, line);
             l->line += 1;
             l->bol = l->cur + 1;
         }
@@ -1503,17 +1520,6 @@ int main(int argc, char **argv) {
     Lexer l = make_lexer(filename);
 
     Tokens tokens = lex(&l);
-
-    log_info("Lexer.col: %d, ", col(&l));
-    log_info("Lexer.bol: %d, ", l.bol);
-    log_info("Lexer.cur: %d, ", l.cur);
-    log_info("Lexer.line: %d, ", l.line);
-
-    sv_print_range(l.src, stdout, 0, 2);
-    printf("\n");
-
-    return 0;
-
 
     if (dump_tokens) {
         for (size_t i = 0; i < tokens.count; ++i) {
