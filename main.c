@@ -248,9 +248,10 @@ void free_lexer(Lexer *l);
 typedef struct {
     Tokens tokens;
     int current_token_id;
+    Lexer *lexer;
 } Parser;
 
-Parser make_parser(Tokens tokens);
+Parser make_parser(Lexer *lexer, Tokens tokens);
 bool parser_match(Parser *p, const Token_type t);
 bool parser_check_token(Parser *p, const Token_type t);
 Token parser_advance(Parser *p);
@@ -379,18 +380,16 @@ void print_loc(FILE *f, Location loc) {
     fprintf(f, "%s:%d:%d", loc.filename, loc.line, loc.col);
 }
 
-#define compiler_error(loc, fmt, ...) do { \
+#define error_pretty(loc, lexer, fmt, ...) do {\
         print_loc(stderr, loc);\
         putc(' ', stderr);\
+        ASSERT(0 <= ((loc).line-1) && (size_t)((loc).line-1) <= (lexer).lines.count-1, "Should be in range");\
+        Line line = (lexer).lines.items[(loc).line-1];\
+        String_view line_sv = sv_get_part((lexer).src, line.offset, line.offset + line.count);\
         error(fmt, ##__VA_ARGS__);\
+        printf(SV_FMT"\n", SV_ARG(line_sv));\
+        printf("%*s^\n", (loc).col, "");\
     } while (0)
-/**/
-/*#define error_pretty(loc, lexer, fmt, ...) do {\*/
-/*        print_loc(stderr, loc);\*/
-/*        putc(' ', stderr);\*/
-/*        error(fmt, ##__VA_ARGS__);\*/
-/**/
-/*    } while (0)*/
 
 bool token_is_number(Token t) {
     return t.type == TK_INT || t.type == TK_FLOAT;
@@ -677,7 +676,7 @@ Expression *primary(Arena *arena, Parser *p) {
         if (t.type == TK_IDENT) {
             Identifier_KV *ident_kv = hmgetp_null(identifier_map, t.lexeme);
             if (ident_kv == NULL) {
-                compiler_error(t.loc, "Undeclared identifier `"SV_FMT"`", SV_ARG(t.lexeme));
+                error_pretty(t.loc, (*p->lexer), "Undeclared identifier `"SV_FMT"`", SV_ARG(t.lexeme));
                 return NULL;
             }
 
@@ -728,7 +727,7 @@ Expression *primary(Arena *arena, Parser *p) {
         return expr;
     }
 
-    compiler_error(t.loc, "Expected expression, but got `%s`", token_type_as_str(t.type));
+    error_pretty(t.loc, (*p->lexer), "Expected expression, but got `%s`", token_type_as_str(t.type));
     return NULL;
 }
 
@@ -751,6 +750,7 @@ Expression *unary(Arena *arena, Parser *p) {
 
 Expression *factor(Arena *arena, Parser *p) {
     Expression *expr = unary(arena, p);
+    printf("unary expr: %p\n", expr);
 
     while (parser_match(p, TK_DIVIDE) || parser_match(p, TK_MULTIPLY)) {
         Token op = parser_previous(p);
@@ -772,6 +772,7 @@ Expression *factor(Arena *arena, Parser *p) {
 
 Expression *term(Arena *arena, Parser *p) {
     Expression *expr = factor(arena, p);
+    printf("factor expr: %p\n", expr);
 
     while (parser_match(p, TK_MINUS) || parser_match(p, TK_PLUS)) {
         Token operator = parser_previous(p);
@@ -794,6 +795,7 @@ Expression *term(Arena *arena, Parser *p) {
 
 Expression *comparision(Arena *arena, Parser *p) {
     Expression *expr = term(arena, p);
+    printf("term expr: %p\n", expr);
 
     while (parser_match(p, TK_GT) || parser_match(p, TK_GTE) ||
            parser_match(p, TK_LT) || parser_match(p, TK_LTE)) {
@@ -817,6 +819,7 @@ Expression *comparision(Arena *arena, Parser *p) {
 
 Expression *equality(Arena *arena, Parser *p) {
     Expression *expr = comparision(arena, p);
+    printf("comparision expr: %p\n", expr);
 
     while (parser_match(p, TK_NOT_EQUAL) || parser_match(p, TK_EQUAL_EQUAL)) {
         Token operator = parser_previous(p);
@@ -839,6 +842,7 @@ Expression *equality(Arena *arena, Parser *p) {
 
 Expression *expression(Arena *arena, Parser *p) {
     Expression *expr = equality(arena, p);
+    printf("equality expr: %p\n", expr);
     return expr;
 }
 
@@ -877,10 +881,11 @@ void free_lexer(Lexer *l) {
 */
 
 
-Parser make_parser(Tokens tokens) {
+Parser make_parser(Lexer *lexer, Tokens tokens) {
     return (Parser) {
         .tokens = tokens,
         .current_token_id = 0,
+        .lexer = lexer,
     };
 }
 
@@ -972,7 +977,7 @@ void consume_string(Lexer *l, String_view *string_sv_out, Location *loc_out) {
     l->cur += string_sv_out->count;
 
     if (eof(l)) {
-        compiler_error(*loc_out, "Unterminated string!"); 
+        error_pretty((*loc_out), (*l), "Unterminated string!"); 
         exit(1);
     }
 
@@ -997,11 +1002,11 @@ void consume_character(Lexer *l, String_view *char_sv_out, Location *loc_out) {
     l->cur += 1;
 
     if (current_char(l) != '\'') {
-        compiler_error(*loc_out, "Expected `'`, but got `%ch`", current_char(l));
+        error_pretty(*loc_out, *l, "Expected `'`, but got `%ch`", current_char(l));
         exit(1);
     }
     if (eof(l)) {
-        compiler_error(*loc_out, "Unterminated char!"); 
+        error_pretty(*loc_out, *l, "Unterminated char!"); 
         exit(1);
     }
 
@@ -1066,7 +1071,7 @@ void consume_comment(Lexer *l, String_view *sv_out, Location *loc_out) {
                 .line = l->line,
                 .col = col(l),
             };
-            compiler_error(loc, "Unterminated comment!");
+            error_pretty(loc, *l, "Unterminated comment!");
             exit(1);
         } break;
         case '/': {
@@ -1529,14 +1534,18 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    Parser p = make_parser(tokens);
+    Parser p = make_parser(&l, tokens);
 
     Arena expr_arena = arena_make(0);
 
     Expression *expr = expression(&expr_arena, &p);
 
+    printf("outside expr: %p\n", expr);
+    return 0;
+    if (expr == NULL) return 1;
+
     if (!parser_match(&p, TK_SEMICOLON)) {
-        compiler_error(parser_previous(&p).loc, "Expected semicolon but got '%s'", token_type_as_str(parser_previous(&p).type));
+        error_pretty(parser_previous(&p).loc, (*p.lexer), "Expected semicolon but got '%s'", token_type_as_str(parser_previous(&p).type));
         return 1;
     }
 
