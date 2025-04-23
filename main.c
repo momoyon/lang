@@ -668,18 +668,15 @@ Expression *expression(Arena *arena, Parser *p);
 Expression *primary(Arena *arena, Parser *p) {
     // NOTE: We can advance here because primary is the last rule
     // TODO: Somehow parser_advance() here breaks it.
-    Token t = parser_advance(p);
-    printf("Parser.current_token_id: %d\n", p->current_token_id);
-    printf("PRIMARY: ");
-    print_token(stdout, t); printf("\n");
+    Token t = parser_peek(p);
 
     if (t.type != TK_LEFT_PAREN) {
-        /*log_info("Got here < 1");*/
         Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
         expr->kind = EXPR_PRIMARY;
         expr->loc = t.loc;
         expr->prim_expr = (Primary_expression *)arena_alloc(arena, sizeof(Primary_expression));
         expr->prim_expr->kind = PRIMARY_VALUE;
+        parser_advance(p);
         if (t.type == TK_IDENT) {
             Identifier_KV *ident_kv = hmgetp_null(identifier_map, t.lexeme);
             if (ident_kv == NULL) {
@@ -726,9 +723,6 @@ Expression *primary(Arena *arena, Parser *p) {
             expr->prim_expr->value_kind = LIT_BOOL;
             expr->prim_expr->value.as.b = sv_equals(t.lexeme, SV("true"));
             return expr;
-        } else {
-            print_token(stdout, t); printf("\n");
-            ASSERT(false, "UNIMPLEMENTED!");
         }
     } else {
         parser_advance(p); // Skip (
@@ -743,9 +737,6 @@ Expression *primary(Arena *arena, Parser *p) {
 
 Expression *unary(Arena *arena, Parser *p) {
     Token t = parser_peek(p);
-
-    printf("UNARY: ");
-    print_token(stdout, t); printf("\n");
 
     if (t.type == TK_NOT || t.type == TK_MINUS) {
         Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
@@ -763,14 +754,9 @@ Expression *unary(Arena *arena, Parser *p) {
 
 Expression *factor(Arena *arena, Parser *p) {
     Expression *expr = unary(arena, p);
-    /*printf("unary expr: %p\n", expr);*/
 
     while (parser_match(p, TK_DIVIDE) || parser_match(p, TK_MULTIPLY)) {
         Token op = parser_previous(p);
-        printf("Got op: ");
-        print_token(stdout, op); printf("\n");
-        printf("Current token: ");
-        print_token(stdout, parser_peek(p)); printf("\n");
         Expression *rhs = unary(arena, p);
 
         Expression *new_expr = (Expression *)arena_alloc(arena, sizeof(Expression));
@@ -1473,10 +1459,11 @@ Tokens lex(Lexer *l) {
     while (next_token(l, &t)) {
         da_append(tokens, t);
     }
+    Line last_line = l->lines.items[l->lines.count-1];
     t.lexeme = SV("EOF");
     t.loc.filename = l->filename;
-    t.loc.line = l->line;
-    t.loc.col = 0;
+    t.loc.line = l->line-1;
+    t.loc.col = last_line.count - last_line.offset;
     t.type = TK_EOF;
     da_append(tokens, t);
 
@@ -1557,12 +1544,10 @@ int main(int argc, char **argv) {
 
     Expression *expr = expression(&expr_arena, &p);
 
-    /*printf("outside expr: %p\n", expr);*/
-    return 0;
     if (expr == NULL) return 1;
 
     if (!parser_match(&p, TK_SEMICOLON)) {
-        error_pretty(parser_previous(&p).loc, (*p.lexer), "Expected semicolon but got '%s'", token_type_as_str(parser_previous(&p).type));
+        error_pretty(parser_peek(&p).loc, (*p.lexer), "Expected semicolon but got '%s'", token_type_as_str(parser_peek(&p).type));
         return 1;
     }
 
