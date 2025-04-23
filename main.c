@@ -630,7 +630,9 @@ bool parser_check_token(Parser *p, const Token_type t) {
 }
 
 Token parser_advance(Parser *p) {
-    if (!parser_eof(p)) p->current_token_id++;
+    if (!parser_eof(p)) { 
+        p->current_token_id += 1;
+    }
     return parser_previous(p);
 }
 
@@ -665,9 +667,14 @@ Expression *expression(Arena *arena, Parser *p);
 
 Expression *primary(Arena *arena, Parser *p) {
     // NOTE: We can advance here because primary is the last rule
+    // TODO: Somehow parser_advance() here breaks it.
     Token t = parser_advance(p);
+    printf("Parser.current_token_id: %d\n", p->current_token_id);
+    printf("PRIMARY: ");
+    print_token(stdout, t); printf("\n");
 
     if (t.type != TK_LEFT_PAREN) {
+        /*log_info("Got here < 1");*/
         Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
         expr->kind = EXPR_PRIMARY;
         expr->loc = t.loc;
@@ -719,9 +726,12 @@ Expression *primary(Arena *arena, Parser *p) {
             expr->prim_expr->value_kind = LIT_BOOL;
             expr->prim_expr->value.as.b = sv_equals(t.lexeme, SV("true"));
             return expr;
+        } else {
+            print_token(stdout, t); printf("\n");
+            ASSERT(false, "UNIMPLEMENTED!");
         }
     } else {
-        /*parser_advance(p); // Skip (*/
+        parser_advance(p); // Skip (
         Expression *expr = expression(arena, p);
         parser_advance(p); // Skip )
         return expr;
@@ -733,6 +743,9 @@ Expression *primary(Arena *arena, Parser *p) {
 
 Expression *unary(Arena *arena, Parser *p) {
     Token t = parser_peek(p);
+
+    printf("UNARY: ");
+    print_token(stdout, t); printf("\n");
 
     if (t.type == TK_NOT || t.type == TK_MINUS) {
         Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
@@ -750,10 +763,14 @@ Expression *unary(Arena *arena, Parser *p) {
 
 Expression *factor(Arena *arena, Parser *p) {
     Expression *expr = unary(arena, p);
-    printf("unary expr: %p\n", expr);
+    /*printf("unary expr: %p\n", expr);*/
 
     while (parser_match(p, TK_DIVIDE) || parser_match(p, TK_MULTIPLY)) {
         Token op = parser_previous(p);
+        printf("Got op: ");
+        print_token(stdout, op); printf("\n");
+        printf("Current token: ");
+        print_token(stdout, parser_peek(p)); printf("\n");
         Expression *rhs = unary(arena, p);
 
         Expression *new_expr = (Expression *)arena_alloc(arena, sizeof(Expression));
@@ -772,7 +789,7 @@ Expression *factor(Arena *arena, Parser *p) {
 
 Expression *term(Arena *arena, Parser *p) {
     Expression *expr = factor(arena, p);
-    printf("factor expr: %p\n", expr);
+    /*printf("factor expr: %p\n", expr);*/
 
     while (parser_match(p, TK_MINUS) || parser_match(p, TK_PLUS)) {
         Token operator = parser_previous(p);
@@ -795,7 +812,7 @@ Expression *term(Arena *arena, Parser *p) {
 
 Expression *comparision(Arena *arena, Parser *p) {
     Expression *expr = term(arena, p);
-    printf("term expr: %p\n", expr);
+    /*printf("term expr: %p\n", expr);*/
 
     while (parser_match(p, TK_GT) || parser_match(p, TK_GTE) ||
            parser_match(p, TK_LT) || parser_match(p, TK_LTE)) {
@@ -819,7 +836,7 @@ Expression *comparision(Arena *arena, Parser *p) {
 
 Expression *equality(Arena *arena, Parser *p) {
     Expression *expr = comparision(arena, p);
-    printf("comparision expr: %p\n", expr);
+    /*printf("comparision expr: %p\n", expr);*/
 
     while (parser_match(p, TK_NOT_EQUAL) || parser_match(p, TK_EQUAL_EQUAL)) {
         Token operator = parser_previous(p);
@@ -842,7 +859,7 @@ Expression *equality(Arena *arena, Parser *p) {
 
 Expression *expression(Arena *arena, Parser *p) {
     Expression *expr = equality(arena, p);
-    printf("equality expr: %p\n", expr);
+    /*printf("equality expr: %p\n", expr);*/
     return expr;
 }
 
@@ -1540,7 +1557,7 @@ int main(int argc, char **argv) {
 
     Expression *expr = expression(&expr_arena, &p);
 
-    printf("outside expr: %p\n", expr);
+    /*printf("outside expr: %p\n", expr);*/
     return 0;
     if (expr == NULL) return 1;
 
