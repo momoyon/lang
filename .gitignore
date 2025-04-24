@@ -2,3 +2,4 @@ test.sh
 lang.sh
 tags
 lang
+*.exe
