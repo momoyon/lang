@@ -1463,7 +1463,7 @@ Tokens lex(Lexer *l) {
     t.lexeme = SV("EOF");
     t.loc.filename = l->filename;
     t.loc.line = l->line-1;
-    t.loc.col = last_line.count - last_line.offset;
+    t.loc.col = last_line.count;
     t.type = TK_EOF;
     da_append(tokens, t);
 
