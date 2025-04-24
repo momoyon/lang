@@ -758,6 +758,7 @@ Expression *factor(Arena *arena, Parser *p) {
     while (parser_match(p, TK_DIVIDE) || parser_match(p, TK_MULTIPLY)) {
         Token op = parser_previous(p);
         Expression *rhs = unary(arena, p);
+        if (rhs == NULL) return rhs;
 
         Expression *new_expr = (Expression *)arena_alloc(arena, sizeof(Expression));
         new_expr->kind = EXPR_BINARY;
@@ -781,6 +782,7 @@ Expression *term(Arena *arena, Parser *p) {
         Token operator = parser_previous(p);
 
         Expression *rhs = factor(arena, p);
+        if (rhs == NULL) return NULL;
 
         Expression *new_expr = (Expression *)arena_alloc(arena, sizeof(Expression));
         new_expr->kind = EXPR_BINARY;
@@ -805,6 +807,7 @@ Expression *comparision(Arena *arena, Parser *p) {
         Token operator = parser_previous(p);
 
         Expression *rhs = term(arena, p);
+        if (rhs == NULL) return NULL;
 
         Expression *new_expr = (Expression *)arena_alloc(arena, sizeof(Expression));
         new_expr->kind = EXPR_BINARY;
@@ -828,6 +831,7 @@ Expression *equality(Arena *arena, Parser *p) {
         Token operator = parser_previous(p);
 
         Expression *rhs = comparision(arena, p);
+        if (rhs == NULL) return NULL;
 
         Expression *new_expr = (Expression *)arena_alloc(arena, sizeof(Expression));
         new_expr->kind = EXPR_BINARY;
