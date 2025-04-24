@@ -727,6 +727,11 @@ Expression *primary(Arena *arena, Parser *p) {
     } else {
         parser_advance(p); // Skip (
         Expression *expr = expression(arena, p);
+        if (parser_peek(p).type != TK_RIGHT_PAREN) {
+            Token t = parser_peek(p);
+            error_pretty(t.loc, (*p->lexer), "Expected ), But got `%s`", token_type_as_str(t.type));
+            return NULL;
+        }
         parser_advance(p); // Skip )
         return expr;
     }
