@@ -1,4 +1,4 @@
-# C+ (WIP name)
+# momolang
 
 A Programming Language like the [C Programming Language](https://en.wikipedia.org/wiki/C_(programming_language)) that adds some useful features, different syntax, etc that ultimately transpiles to C itself.
 
