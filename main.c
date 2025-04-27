@@ -23,7 +23,8 @@ static bool DEBUG_PRINT = false;
 // factor         → unary ( ( "/" | "*" ) unary )* ;
 // unary          → ( "!" | "-" ) unary
 //                | primary ;
-// primary        → NUMBER | STRING | "true" | "false" | "nil"
+// suffixes       → ( "++" | "--" ) IDENT
+// primary        → NUMBER | STRING | IDENT | "true" | "false" | "null"
 //                | "(" expression ")" ;
 
 /* NOTE: We are referencing this table: https://en.cppreference.com/w/c/language/operator_precedence
@@ -665,6 +666,7 @@ bool parser_eof(Parser *p) {
 
 // Predecls
 Expression *parse_primary(Arena *arena, Parser *p);
+Expression *parse_suffixes(Arena *arena, Parser *p);
 Expression *parse_unary(Arena *arena, Parser *p);
 Expression *parse_factor(Arena *arena, Parser *p);
 Expression *parse_comparision(Arena *arena, Parser *p);
@@ -758,6 +760,34 @@ Expression *parse_primary(Arena *arena, Parser *p) {
     return NULL;
 }
 
+Expression *parse_suffixes(Arena *arena, Parser *p) {
+    Token t = parser_peek(p);
+
+    if (t.type == TK_PLUS_PLUS || t.type == TK_MINUS_MINUS) {
+        parser_advance(p); // Skip ++ | --
+        // TODO: It could be (IDENT) too?
+        if (parser_peek(p).type != TK_IDENT) {
+            /*error_pretty(parser_peek(p).loc, (*p->lexer), "Expected Identifier But got `%s`", token_type_as_str(parser_peek(p).type));*/
+            Token unwanted_token = parser_peek(p);
+            error_pretty(unwanted_token.loc, (*p->lexer),
+                         "You cannot pre-%s `%s`! Only identifiers!",
+                         (t.type == TK_PLUS_PLUS ? "increment" : "decrement"),
+                         token_type_as_str(unwanted_token.type));
+            return NULL;
+        }
+        Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
+        expr->loc = t.loc;
+        expr->unary_expr = (Unary_expression *)arena_alloc(arena, sizeof(Unary_expression));
+        expr->kind = EXPR_UNARY;
+        Unary_expression *unary_expr = expr->unary_expr;
+        unary_expr->operator = parser_previous(p);
+        unary_expr->operand = parse_primary(arena, p);
+        ASSERT(unary_expr->operand != NULL, "We know that the next expr is an identifier!");
+        return expr;
+    }
+    return parse_primary(arena, p);
+}
+
 Expression *parse_unary(Arena *arena, Parser *p) {
     Token t = parser_peek(p);
 
@@ -772,7 +802,7 @@ Expression *parse_unary(Arena *arena, Parser *p) {
         return expr;
     }
 
-    return parse_primary(arena, p);
+    return parse_suffixes(arena, p);
 }
 
 Expression *parse_factor(Arena *arena, Parser *p) {
