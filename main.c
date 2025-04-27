@@ -340,6 +340,12 @@ struct Expression {
 void print_expression_as_value(FILE *f, Expression e);
 void print_expression(FILE *f, Expression e);
 
+typedef struct {
+    Expression **items;
+    size_t count;
+    size_t capacity;
+} Expression_refs;
+
 ///
 
 /// Identifiers
@@ -1551,16 +1557,25 @@ int main(int argc, char **argv) {
 
     Arena expr_arena = arena_make(0);
 
+    Expression_refs expr_refs = {0};
+
     Expression *expr = expression(&expr_arena, &p);
-
-    if (expr == NULL) return 1;
-
-    if (!parser_match(&p, TK_SEMICOLON)) {
-        error_pretty(parser_peek(&p).loc, (*p.lexer), "Expected semicolon but got '%s'", token_type_as_str(parser_peek(&p).type));
-        return 1;
+    while (expr != NULL) {
+        if (!parser_match(&p, TK_SEMICOLON)) {
+            error_pretty(parser_peek(&p).loc, (*p.lexer), "Expected semicolon but got '%s'", token_type_as_str(parser_peek(&p).type));
+            return 1;
+        }
+        da_append(expr_refs, expr);
+        if (parser_eof(&p)) {
+            break;
+        };
+        expr = expression(&expr_arena, &p);
     }
 
-    print_expression(stdout, *expr); printf("\n");
+    for (size_t i = 0; i < expr_refs.count; ++i) {
+        Expression *expr = expr_refs.items[i];
+        print_expression(stdout, *expr); printf("\n");
+    }
 
     arena_free(&expr_arena);
     free_parser(&p);
