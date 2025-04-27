@@ -94,8 +94,6 @@ static bool DEBUG_PRINT = false;
  * --------------------+-----------------------------------+-----------
  * Suffix Inc/Dec      | ++ --                             | Left
  * --------------------+-----------------------------------+-----------
- *
- * --------------------+-----------------------------------+-----------
  * Primary             | IDENTS NUMBERS STRINGS CHARS (expr) | -
  * --------------------+-----------------------------------+-----------
  */
@@ -663,15 +661,15 @@ bool parser_eof(Parser *p) {
 
 
 // Predecls
-Expression *primary(Arena *arena, Parser *p);
-Expression *unary(Arena *arena, Parser *p);
-Expression *factor(Arena *arena, Parser *p);
-Expression *comparision(Arena *arena, Parser *p);
-Expression *term(Arena *arena, Parser *p);
-Expression *equality(Arena *arena, Parser *p);
-Expression *expression(Arena *arena, Parser *p);
+Expression *parse_primary(Arena *arena, Parser *p);
+Expression *parse_unary(Arena *arena, Parser *p);
+Expression *parse_factor(Arena *arena, Parser *p);
+Expression *parse_comparision(Arena *arena, Parser *p);
+Expression *parse_term(Arena *arena, Parser *p);
+Expression *parse_equality(Arena *arena, Parser *p);
+Expression *parse_expression(Arena *arena, Parser *p);
 
-Expression *primary(Arena *arena, Parser *p) {
+Expression *parse_primary(Arena *arena, Parser *p) {
     // NOTE: We can advance here because primary is the last rule
     // TODO: Somehow parser_advance() here breaks it.
     Token t = parser_peek(p);
@@ -732,7 +730,7 @@ Expression *primary(Arena *arena, Parser *p) {
         }
     } else {
         parser_advance(p); // Skip (
-        Expression *expr = expression(arena, p);
+        Expression *expr = parse_expression(arena, p);
         if (parser_peek(p).type != TK_RIGHT_PAREN) {
             Token t = parser_peek(p);
             error_pretty(t.loc, (*p->lexer), "Expected ), But got `%s`", token_type_as_str(t.type));
@@ -746,7 +744,7 @@ Expression *primary(Arena *arena, Parser *p) {
     return NULL;
 }
 
-Expression *unary(Arena *arena, Parser *p) {
+Expression *parse_unary(Arena *arena, Parser *p) {
     Token t = parser_peek(p);
 
     if (t.type == TK_NOT || t.type == TK_MINUS) {
@@ -756,19 +754,19 @@ Expression *unary(Arena *arena, Parser *p) {
         expr->kind = EXPR_UNARY;
         Unary_expression *unary_expr = expr->unary_expr;
         unary_expr->operator = parser_advance(p);
-        unary_expr->operand = unary(arena, p);
+        unary_expr->operand = parse_unary(arena, p);
         return expr;
     }
 
-    return primary(arena, p);
+    return parse_primary(arena, p);
 }
 
-Expression *factor(Arena *arena, Parser *p) {
-    Expression *expr = unary(arena, p);
+Expression *parse_factor(Arena *arena, Parser *p) {
+    Expression *expr = parse_unary(arena, p);
 
     while (parser_match(p, TK_DIVIDE) || parser_match(p, TK_MULTIPLY)) {
         Token op = parser_previous(p);
-        Expression *rhs = unary(arena, p);
+        Expression *rhs = parse_unary(arena, p);
         if (rhs == NULL) return rhs;
 
         Expression *new_expr = (Expression *)arena_alloc(arena, sizeof(Expression));
@@ -785,14 +783,14 @@ Expression *factor(Arena *arena, Parser *p) {
     return expr;
 }
 
-Expression *term(Arena *arena, Parser *p) {
-    Expression *expr = factor(arena, p);
+Expression *parse_term(Arena *arena, Parser *p) {
+    Expression *expr = parse_factor(arena, p);
     /*printf("factor expr: %p\n", expr);*/
 
     while (parser_match(p, TK_MINUS) || parser_match(p, TK_PLUS)) {
         Token operator = parser_previous(p);
 
-        Expression *rhs = factor(arena, p);
+        Expression *rhs = parse_factor(arena, p);
         if (rhs == NULL) return NULL;
 
         Expression *new_expr = (Expression *)arena_alloc(arena, sizeof(Expression));
@@ -809,15 +807,15 @@ Expression *term(Arena *arena, Parser *p) {
     return expr;
 }
 
-Expression *comparision(Arena *arena, Parser *p) {
-    Expression *expr = term(arena, p);
+Expression *parse_comparision(Arena *arena, Parser *p) {
+    Expression *expr = parse_term(arena, p);
     /*printf("term expr: %p\n", expr);*/
 
     while (parser_match(p, TK_GT) || parser_match(p, TK_GTE) ||
            parser_match(p, TK_LT) || parser_match(p, TK_LTE)) {
         Token operator = parser_previous(p);
 
-        Expression *rhs = term(arena, p);
+        Expression *rhs = parse_term(arena, p);
         if (rhs == NULL) return NULL;
 
         Expression *new_expr = (Expression *)arena_alloc(arena, sizeof(Expression));
@@ -834,14 +832,14 @@ Expression *comparision(Arena *arena, Parser *p) {
     return expr;
 }
 
-Expression *equality(Arena *arena, Parser *p) {
-    Expression *expr = comparision(arena, p);
+Expression *parse_equality(Arena *arena, Parser *p) {
+    Expression *expr = parse_comparision(arena, p);
     /*printf("comparision expr: %p\n", expr);*/
 
     while (parser_match(p, TK_NOT_EQUAL) || parser_match(p, TK_EQUAL_EQUAL)) {
         Token operator = parser_previous(p);
 
-        Expression *rhs = comparision(arena, p);
+        Expression *rhs = parse_comparision(arena, p);
         if (rhs == NULL) return NULL;
 
         Expression *new_expr = (Expression *)arena_alloc(arena, sizeof(Expression));
@@ -858,8 +856,8 @@ Expression *equality(Arena *arena, Parser *p) {
     return expr;
 }
 
-Expression *expression(Arena *arena, Parser *p) {
-    Expression *expr = equality(arena, p);
+Expression *parse_expression(Arena *arena, Parser *p) {
+    Expression *expr = parse_equality(arena, p);
     /*printf("equality expr: %p\n", expr);*/
     return expr;
 }
@@ -1559,7 +1557,7 @@ int main(int argc, char **argv) {
 
     Expression_refs expr_refs = {0};
 
-    Expression *expr = expression(&expr_arena, &p);
+    Expression *expr = parse_expression(&expr_arena, &p);
     while (expr != NULL) {
         if (!parser_match(&p, TK_SEMICOLON)) {
             error_pretty(parser_peek(&p).loc, (*p.lexer), "Expected semicolon but got '%s'", token_type_as_str(parser_peek(&p).type));
@@ -1569,7 +1567,7 @@ int main(int argc, char **argv) {
         if (parser_eof(&p)) {
             break;
         };
-        expr = expression(&expr_arena, &p);
+        expr = parse_expression(&expr_arena, &p);
     }
 
     for (size_t i = 0; i < expr_refs.count; ++i) {
