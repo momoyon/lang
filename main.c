@@ -352,6 +352,8 @@ typedef struct {
     String_view name;
     Literal value;
     Literal_kind value_kind;
+    bool not_declared;
+    Primary_expression *prim_expr;
 } Identifier;
 
 typedef struct {
@@ -440,15 +442,16 @@ void print_primary_expression(FILE *f, Primary_expression *pe) {
     if (pe->kind == PRIMARY_VALUE) {
         print_literal(f, pe->value, pe->value_kind);
     } else if (pe->kind == PRIMARY_IDENT) {
-        /*Identifier ident = identifiers.items[pe->identifier_id];*/
-        /**/
-        /*fprintf(f, "[IDENT] '"SV_FMT"': ", SV_ARG(ident.name));*/
-        /*if (ident.value_set) {*/
-        /*    print_literal(f, ident.value, ident.value_kind);*/
-        /*} else {*/
-        /*    fprintf(f, "<NOTSET>");*/
-        /*}*/
-        ASSERT(false, "UNREACHABLE!");
+        Identifier_KV *ident_kv = hmgetp_null(identifier_map, pe->identifier_key);
+        ASSERT(ident_kv != NULL, "The identifier should be in the identifier_map!");
+        Identifier ident = ident_kv->value;
+
+        fprintf(f, "[IDENT] '"SV_FMT"': ", SV_ARG(ident.name));
+        if (ident.not_declared) {
+            fprintf(f, "<NOTSET>");
+        } else {
+            print_literal(f, ident.value, ident.value_kind);
+        }
     } else {
         ASSERT(false, "UNREACHABLE!");
     }
@@ -683,16 +686,27 @@ Expression *parse_primary(Arena *arena, Parser *p) {
         parser_advance(p);
         if (t.type == TK_IDENT) {
             Identifier_KV *ident_kv = hmgetp_null(identifier_map, t.lexeme);
+            // We found a non-declared identifier being used, add it to the identifier_map marking it as non-declared
             if (ident_kv == NULL) {
-                error_pretty(t.loc, (*p->lexer), "Undeclared identifier `"SV_FMT"`", SV_ARG(t.lexeme));
-                return NULL;
-            }
+                Identifier ident = {0};
+                ident.name = t.lexeme;
+                ident.not_declared = true;
 
+                hmput(identifier_map, t.lexeme, ident);
+                ident_kv = hmgetp_null(identifier_map, t.lexeme);
+            }
+            ASSERT(ident_kv != NULL, "We fucked something up above!");
             Identifier ident = ident_kv->value;
 
             expr->prim_expr->identifier_key = t.lexeme;
-            expr->prim_expr->value = ident.value;
-            expr->prim_expr->value_kind = ident.value_kind;
+            if (ident.not_declared) {
+                // If the ident is not declared yet, mark the primary_expr it needs to update the value of for later.
+                ident_kv->value.prim_expr = expr->prim_expr;
+            } else {
+                // If the ident is declared, set the value of the expression!
+                expr->prim_expr->value = ident.value;
+                expr->prim_expr->value_kind = ident.value_kind;
+            }
             expr->prim_expr->kind = PRIMARY_IDENT;
 
             return expr;
