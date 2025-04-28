@@ -807,6 +807,7 @@ Expression *parse_unary(Arena *arena, Parser *p) {
 
 Expression *parse_factor(Arena *arena, Parser *p) {
     Expression *expr = parse_unary(arena, p);
+    if (expr == NULL) return NULL;
 
     while (parser_match(p, TK_DIVIDE) || parser_match(p, TK_MULTIPLY)) {
         Token op = parser_previous(p);
@@ -829,6 +830,7 @@ Expression *parse_factor(Arena *arena, Parser *p) {
 
 Expression *parse_term(Arena *arena, Parser *p) {
     Expression *expr = parse_factor(arena, p);
+    if (expr == NULL) return NULL;
     /*printf("factor expr: %p\n", expr);*/
 
     while (parser_match(p, TK_MINUS) || parser_match(p, TK_PLUS)) {
@@ -853,6 +855,7 @@ Expression *parse_term(Arena *arena, Parser *p) {
 
 Expression *parse_comparision(Arena *arena, Parser *p) {
     Expression *expr = parse_term(arena, p);
+    if (expr == NULL) return NULL;
     /*printf("term expr: %p\n", expr);*/
 
     while (parser_match(p, TK_GT) || parser_match(p, TK_GTE) ||
@@ -878,6 +881,7 @@ Expression *parse_comparision(Arena *arena, Parser *p) {
 
 Expression *parse_equality(Arena *arena, Parser *p) {
     Expression *expr = parse_comparision(arena, p);
+    if (expr == NULL) return NULL;
     /*printf("comparision expr: %p\n", expr);*/
 
     while (parser_match(p, TK_NOT_EQUAL) || parser_match(p, TK_EQUAL_EQUAL)) {
