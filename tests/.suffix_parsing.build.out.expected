@@ -1,0 +1,4 @@
+suffix_parsing.momo:1:0 [UNARY] '([IDENT] 'foo': ???) ++ '
+suffix_parsing.momo:3:0 [UNARY] '([IDENT] 'bar': ???) -- '
+suffix_parsing.momo:5:0 [UNARY] '([IDENT] 'a': ???) ++ '
+suffix_parsing.momo:5:5 [UNARY] '([IDENT] 'b': ???) -- '
