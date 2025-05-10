@@ -21,7 +21,7 @@
 #define log_debug(...)
 #endif
 
-#define COMPILER_VERSION "v0.0.6"
+#define COMPILER_VERSION "v0.0.7"
 
 static bool DEBUG_PRINT = false;
 
