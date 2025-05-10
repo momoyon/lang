@@ -11,6 +11,16 @@
 #define error log_error
 #define info log_info
 
+#if DEBUG
+// #error DEBUG IS ENABLED!
+#define log_debug(fmt, ...) do {\
+		fprintf(stdout, "%s"fmt"\n", "[DEBUG] ", ##__VA_ARGS__);\
+	} while (0)
+#else
+// #error DEBUG IS DISABLED!
+#define log_debug(...)
+#endif
+
 #define COMPILER_VERSION "v0.0.6"
 
 static bool DEBUG_PRINT = false;
@@ -23,8 +33,8 @@ static bool DEBUG_PRINT = false;
 // factor         -> unary ( ( "/" | "*" ) unary )* ;
 // unary          -> ( "!" | "-" ) unary
 //                | primary ;
-// suffixes       → ( "++" | "--" ) IDENT
-// primary        → NUMBER | STRING | IDENT | "true" | "false" | "null"
+// suffixes       -> IDENT ( "++" | "--" )
+// primary        -> NUMBER | STRING | IDENT | "true" | "false" | "null"
 //                | "(" expression ")" ;
 
 /* NOTE: We are referencing this table: https://en.cppreference.com/w/c/language/operator_precedence
@@ -35,68 +45,68 @@ static bool DEBUG_PRINT = false;
  *  v
  * HIGH
  *
- * NAME                | OP                                | ASSOCIATE
- * --------------------+-----------------------------------+-----------
- * Comma               | ,                                 | Left
- * --------------------+-----------------------------------+-----------
- * Bitwise Assignment  | &= |= ^=                          | Right
- * --------------------+-----------------------------------+-----------
- * Bitshift Assignment | <<= >>=                           | Right
- * --------------------+-----------------------------------+-----------
- * Factor Assignment   | /= *= %=                          | Right
- * --------------------+-----------------------------------+-----------
- * Term Assignment     | += -=                             | Right
- * --------------------+-----------------------------------+-----------
- * Simple Assignment   | =                                 | Right
- * --------------------+-----------------------------------+-----------
- * Ternary Condition   | ?:                                | Right
- * --------------------+-----------------------------------+-----------
- * Logical OR          | ||                                | Left
- * --------------------+-----------------------------------+-----------
- * Logical AND         | &&                                | Left
- * --------------------+-----------------------------------+-----------
- * Bitwise OR          | |                                 | Left
- * --------------------+-----------------------------------+-----------
- * Bitwise XOR         | ^                                 | Left
- * --------------------+-----------------------------------+-----------
- * Bitwise AND         | &                                 | Left
- * --------------------+-----------------------------------+-----------
- * Equality            | == !=                             | Left
- * --------------------+-----------------------------------+-----------
- * Comparision         | > >= < <=                         | Left
- * --------------------+-----------------------------------+-----------
- * Bit shift           | << >>                             | Left
- * --------------------+-----------------------------------+-----------
- * Term                | - +                               | Left
- * --------------------+-----------------------------------+-----------
- * Factor              | / * %                             | Left
- * --------------------+-----------------------------------+-----------
- * sizeof              | sizeof                            | Right
- * --------------------+-----------------------------------+-----------
- * Address-of          | &                                 | Right
- * --------------------+-----------------------------------+-----------
- * Dereference         | *                                 | Right
- * --------------------+-----------------------------------+-----------
- * Cast                | (type)                            | Right
- * --------------------+-----------------------------------+-----------
- * L/B NOT             | ! ~                               | Right
- * --------------------+-----------------------------------+-----------
- * Unary Plus/Minus    | + -                               | Right
- * --------------------+-----------------------------------+-----------
- * Prefix Inc/Dec      | ++ --                             | Right
- * --------------------+-----------------------------------+-----------
- * Compound Lit        | (type){list}                      | Left
- * --------------------+-----------------------------------+-----------
- * Struct/Union access | .                                 | Left      NOTE: We use . to access through pointers as well
- * --------------------+-----------------------------------+-----------
- * Array Subscripting  | []                                | Left
- * --------------------+-----------------------------------+-----------
- * Function Call       | ()                                | Left
- * --------------------+-----------------------------------+-----------
- * Suffix Inc/Dec      | ++ --                             | Left
- * --------------------+-----------------------------------+-----------
- * Primary             | IDENTS NUMBERS STRINGS CHARS (expr) | -
- * --------------------+-----------------------------------+-----------
+ * NAME                | OP                                  | ASSOCIATE | DONE
+ * --------------------+-------------------------------------+-----------+-----
+ * Comma               | ,                                   | Left      |
+ * --------------------+-------------------------------------+-----------+-----
+ * Bitwise Assignment  | &= |= ^=                            | Right     |
+ * --------------------+-------------------------------------+-----------+-----
+ * Bitshift Assignment | <<= >>=                             | Right     |
+ * --------------------+-------------------------------------+-----------+-----
+ * Factor Assignment   | /= *= %=                            | Right     |
+ * --------------------+-------------------------------------+-----------+-----
+ * Term Assignment     | += -=                               | Right     |
+ * --------------------+-------------------------------------+-----------+-----
+ * Simple Assignment   | =                                   | Right     |
+ * --------------------+-------------------------------------+-----------+-----
+ * Ternary Condition   | ?:                                  | Right     |
+ * --------------------+-------------------------------------+-----------+-----
+ * Logical OR          | ||                                  | Left      |
+ * --------------------+-------------------------------------+-----------+-----
+ * Logical AND         | &&                                  | Left      |
+ * --------------------+-------------------------------------+-----------+-----
+ * Bitwise OR          | |                                   | Left      |
+ * --------------------+-------------------------------------+-----------+-----
+ * Bitwise XOR         | ^                                   | Left      |
+ * --------------------+-------------------------------------+-----------+-----
+ * Bitwise AND         | &                                   | Left      |
+ * --------------------+-------------------------------------+-----------+-----
+ * Equality            | == !=                               | Left      |
+ * --------------------+-------------------------------------+-----------+-----
+ * Comparision         | > >= < <=                           | Left      |
+ * --------------------+-------------------------------------+-----------+-----
+ * Bit shift           | << >>                               | Left      |
+ * --------------------+-------------------------------------+-----------+-----
+ * Term                | - +                                 | Left      |
+ * --------------------+-------------------------------------+-----------+-----
+ * Factor              | / * %                               | Left      |
+ * --------------------+-------------------------------------+-----------+-----
+ * sizeof              | sizeof                              | Right     |
+ * --------------------+-------------------------------------+-----------+-----
+ * Address-of          | &                                   | Right     |
+ * --------------------+-------------------------------------+-----------+-----
+ * Dereference         | *                                   | Right     |
+ * --------------------+-------------------------------------+-----------+-----
+ * Cast                | (type)                              | Right     |
+ * --------------------+-------------------------------------+-----------+-----
+ * L/B NOT             | ! ~                                 | Right     |
+ * --------------------+-------------------------------------+-----------+-----
+ * Unary Plus/Minus    | + -                                 | Right     |
+ * --------------------+-------------------------------------+-----------+-----
+ * Prefix Inc/Dec      | ++ --                               | Right     | X
+ * --------------------+-------------------------------------+-----------+-----
+ * Compound Lit        | (type){list}                        | Left      |
+ * --------------------+-------------------------------------+-----------+-----
+ * Struct/Union access | .                                   | Left      |      NOTE: We use . to access through pointers as well
+ * --------------------+-------------------------------------+-----------+-----
+ * Array Subscripting  | []                                  | Left      |
+ * --------------------+-------------------------------------+-----------+-----
+ * Function Call       | IDENT()                             | Left      |
+ * --------------------+-------------------------------------+-----------+-----
+ * Suffix Inc/Dec      | ++ --                               | Left      |
+ * --------------------+-------------------------------------+-----------+-----
+ * Primary             | IDENTS NUMBERS STRINGS CHARS (expr) | -         | X
+ * --------------------+-------------------------------------+-----------+-----
  */
 
 
@@ -186,8 +196,10 @@ typedef struct {
     String_view lexeme;
     Location loc;
     Token_type type;
+    bool dummy;
 } Token;
 
+Token dummy_token(void);
 bool token_is_number(Token t);
 void print_token(FILE *f, Token t);
 
@@ -255,14 +267,14 @@ bool parser_match(Parser *p, const Token_type t);
 bool parser_check_token(Parser *p, const Token_type t);
 Token parser_advance(Parser *p);
 Token parser_previous(Parser *p);
-Token parser_peek_by(Parser *p, size_t by);
+Token parser_peek_by(Parser *p, int by);
 Token parser_peek(Parser *p);
 bool parser_eof(Parser *p);
 void free_parser(Parser *p);
 
 ///
 
-/// NOTE: Expressions
+/// NOTE: Expressions (Ig these should be called `AST` instead of `expression`?
 typedef struct Expression Expression;
 typedef struct Unary_expression Unary_expression;
 typedef struct Binary_expression Binary_expression;
@@ -297,6 +309,7 @@ const char *lit_kind_as_str(Literal_kind k);
 struct Unary_expression {
     Token operator;
     Expression *operand;
+    bool suffix;
 };
 
 struct Binary_expression {
@@ -399,6 +412,12 @@ void print_loc(FILE *f, Location loc) {
         printf("%*s^\n", (loc).col, "");\
     } while (0)
 
+Token dummy_token(void) {
+    Token t = {0};
+    t.dummy = true;
+    return t;
+}
+
 bool token_is_number(Token t) {
     return t.type == TK_INT || t.type == TK_FLOAT;
 }
@@ -450,7 +469,7 @@ void print_primary_expression(FILE *f, Primary_expression *pe) {
 
         fprintf(f, "[IDENT] '"SV_FMT"': ", SV_ARG(ident.name));
         if (ident.not_declared) {
-            fprintf(f, "<NOTSET>");
+            fprintf(f, "???");
         } else {
             print_literal(f, ident.value, ident.value_kind);
         }
@@ -470,10 +489,18 @@ void print_expression_as_value(FILE *f, Expression e) {
 
         } break;
         case EXPR_UNARY: {
-            fprintf(f, " %s ", token_type_as_str(e.unary_expr->operator.type));
-            fprintf(f, "(");
-            print_expression_as_value(f, *e.unary_expr->operand);
-            fprintf(f, ")");
+            if (e.unary_expr->suffix) {
+                fprintf(f, "(");
+                print_expression_as_value(f, *e.unary_expr->operand);
+                fprintf(f, ")");
+                fprintf(f, " %s ", token_type_as_str(e.unary_expr->operator.type));
+            } else {
+                fprintf(f, " %s ", token_type_as_str(e.unary_expr->operator.type));
+                fprintf(f, "(");
+                print_expression_as_value(f, *e.unary_expr->operand);
+                fprintf(f, ")");
+            }
+
         } break;
         case EXPR_PRIMARY: {
             print_primary_expression(f, e.prim_expr);
@@ -489,7 +516,6 @@ void print_expression(FILE *f, Expression e) {
     print_expression_as_value(f, e);
     fprintf(f, "'");
 }
-
 
 const char *token_type_as_str(Token_type t) {
     switch (t) {
@@ -621,8 +647,12 @@ Token_type comment_token_type(String_view comment) {
 }
 
 void print_token(FILE *f, Token t) {
-    print_loc(f, t.loc);
-    fprintf(f, " [%s] '"SV_FMT"'", token_type_as_str(t.type), SV_ARG(t.lexeme));
+    if (t.dummy) {
+        fprintf(f, "<DUMMY_TOKEN>");
+    } else {
+        print_loc(f, t.loc);
+        fprintf(f, " [%s] '"SV_FMT"'", token_type_as_str(t.type), SV_ARG(t.lexeme));
+    }
 }
 
 bool parser_match(Parser *p, const Token_type t) {
@@ -645,19 +675,20 @@ Token parser_advance(Parser *p) {
     return parser_previous(p);
 }
 
-Token parser_previous(Parser *p) {
-    ASSERT(0 <= p->current_token_id-1 && (size_t)p->current_token_id-1 <= p->tokens.count-1, "OutofBounds");
-    return p->tokens.items[p->current_token_id-1];
-}
-
-
-Token parser_peek_by(Parser *p, size_t by) {
-    ASSERT(0 <= (int)(p->current_token_id+by) && (size_t)(p->current_token_id+by) <= p->tokens.count-1, "OutofBounds");
+Token parser_peek_by(Parser *p, int by) {
+    if (0 > (int)(p->current_token_id+by) || p->current_token_id+by > (int)p->tokens.count-1) {
+        log_debug("parser_peek_by() OUTOFBOUNDS!");
+        return dummy_token();
+    }
     return p->tokens.items[p->current_token_id+by];
 }
 
+Token parser_previous(Parser *p) {
+    return parser_peek_by(p, -1);
+}
+
 Token parser_peek(Parser *p) {
-	return parser_peek_by(p, 0);
+    return parser_peek_by(p, 0);
 }
 
 bool parser_eof(Parser *p) {
@@ -769,28 +800,25 @@ Expression *parse_primary(Arena *arena, Parser *p) {
 Expression *parse_suffixes(Arena *arena, Parser *p) {
     Token t = parser_peek(p);
 
-    if (t.type == TK_PLUS_PLUS || t.type == TK_MINUS_MINUS) {
-        parser_advance(p); // Skip ++ | --
-        // TODO: It could be (IDENT) too?
-        if (parser_peek(p).type != TK_IDENT) {
-            /*error_pretty(parser_peek(p).loc, (*p->lexer), "Expected Identifier But got `%s`", token_type_as_str(parser_peek(p).type));*/
-            Token unwanted_token = parser_peek(p);
-            error_pretty(unwanted_token.loc, (*p->lexer),
-                         "You cannot pre-%s `%s`! Only identifiers!",
-                         (t.type == TK_PLUS_PLUS ? "increment" : "decrement"),
-                         token_type_as_str(unwanted_token.type));
-            return NULL;
-        }
+    if (t.type == TK_IDENT &&
+            (parser_peek_by(p, 1).type == TK_PLUS_PLUS ||
+             parser_peek_by(p, 1).type == TK_MINUS_MINUS)) {
+        //
+        Expression *operand = parse_primary(arena, p);
+        ASSERT(operand, "We should be able to parse identifiers using parse_primary()!");
+        // printf("INFO: CURRENT TOKEN: "); print_token(stdout, parser_peek(p));
+
         Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
         expr->loc = t.loc;
         expr->unary_expr = (Unary_expression *)arena_alloc(arena, sizeof(Unary_expression));
         expr->kind = EXPR_UNARY;
         Unary_expression *unary_expr = expr->unary_expr;
-        unary_expr->operator = parser_previous(p);
-        unary_expr->operand = parse_primary(arena, p);
-        ASSERT(unary_expr->operand != NULL, "We know that the next expr is an identifier!");
+        unary_expr->operator = parser_advance(p);
+        unary_expr->operand = operand;
+        unary_expr->suffix = true;
         return expr;
     }
+
     return parse_primary(arena, p);
 }
 
