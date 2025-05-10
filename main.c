@@ -255,6 +255,7 @@ bool parser_match(Parser *p, const Token_type t);
 bool parser_check_token(Parser *p, const Token_type t);
 Token parser_advance(Parser *p);
 Token parser_previous(Parser *p);
+Token parser_peek_by(Parser *p, size_t by);
 Token parser_peek(Parser *p);
 bool parser_eof(Parser *p);
 void free_parser(Parser *p);
@@ -421,7 +422,7 @@ const char *lit_kind_as_str(Literal_kind k) {
         case LIT_BOOL: return "BOOL";
         case LIT_CHAR: return "CHAR";
         case LIT_STRING: return "STRING";
-        case LIT_COUNT: 
+        case LIT_COUNT:
         default: ASSERT(false, "UNREACHABLE!");
     }
     return "YOU SHOULD NOT SEE THIS!";
@@ -638,7 +639,7 @@ bool parser_check_token(Parser *p, const Token_type t) {
 }
 
 Token parser_advance(Parser *p) {
-    if (!parser_eof(p)) { 
+    if (!parser_eof(p)) {
         p->current_token_id += 1;
     }
     return parser_previous(p);
@@ -649,9 +650,14 @@ Token parser_previous(Parser *p) {
     return p->tokens.items[p->current_token_id-1];
 }
 
+
+Token parser_peek_by(Parser *p, size_t by) {
+    ASSERT(0 <= (int)(p->current_token_id+by) && (size_t)(p->current_token_id+by) <= p->tokens.count-1, "OutofBounds");
+    return p->tokens.items[p->current_token_id+by];
+}
+
 Token parser_peek(Parser *p) {
-    ASSERT(0 <= p->current_token_id && (size_t)p->current_token_id <= p->tokens.count-1, "OutofBounds");
-    return p->tokens.items[p->current_token_id];
+	return parser_peek_by(p, 0);
 }
 
 bool parser_eof(Parser *p) {
@@ -1041,7 +1047,7 @@ void consume_string(Lexer *l, String_view *string_sv_out, Location *loc_out) {
     l->cur += string_sv_out->count;
 
     if (eof(l)) {
-        error_pretty((*loc_out), (*l), "Unterminated string!"); 
+        error_pretty((*loc_out), (*l), "Unterminated string!");
         exit(1);
     }
 
@@ -1070,7 +1076,7 @@ void consume_character(Lexer *l, String_view *char_sv_out, Location *loc_out) {
         exit(1);
     }
     if (eof(l)) {
-        error_pretty(*loc_out, *l, "Unterminated char!"); 
+        error_pretty(*loc_out, *l, "Unterminated char!");
         exit(1);
     }
 
@@ -1115,7 +1121,7 @@ void consume_number(Lexer *l, String_view *sv_out, Location *loc_out) {
         // NOTE: We can do this because dot_sv and float_sv is right after sv_out!
         sv_out->count += dot_sv.count + float_sv.count;
     }
-    
+
     // Advance by the len of sv
     l->cur += sv_out->count;
 }
@@ -1264,7 +1270,7 @@ bool next_token(Lexer *l, Token *t_out) {
             char next = next_char(l);
 
             switch (next) {
-                case '*': 
+                case '*':
                 case '/': {
                     String_view comment_sv = {0};
                     Location comment_loc = {0};
