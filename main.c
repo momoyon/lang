@@ -389,11 +389,12 @@ void help(const char *program) {
 
     info("");
     info("Flags: ");
-    info("  -h           Prints this help message.");
-    info("  -v           Prints the version of the compiler.");
+    info("  -h                Prints this help message.");
+    info("  -v                Prints the version of the compiler.");
     info("Subcommands: ");
-    info("  help         Prints this help message.");
-    info("  dump_tokens  Dumps the tokens scanned and exit.");
+    info("  help              Prints this help message.");
+    info("  dump_tokens       Dumps the tokens scanned and exit.");
+    info("  dump_expressions  Dumps the tokens scanned and exit.");
 }
 
 void print_loc(FILE *f, Location loc) {
@@ -1577,6 +1578,7 @@ int main(int argc, char **argv) {
     const char *filename = NULL;
 
     bool dump_tokens = false;
+    bool dump_expressions = false;
 
     while (argc > 0) {
         const char *arg = shift_args(argv, argc);
@@ -1604,6 +1606,8 @@ int main(int argc, char **argv) {
                 return 0;
             } else if (strcmp(arg, "dump_tokens") == 0) {
                 dump_tokens = true;
+            } else if (strcmp(arg, "dump_expressions") == 0) {
+                dump_expressions = true;
             } else {
                 if (filename == NULL) {
                     filename = arg;
@@ -1652,9 +1656,11 @@ int main(int argc, char **argv) {
         expr = parse_expression(&expr_arena, &p);
     }
 
-    for (size_t i = 0; i < expr_refs.count; ++i) {
-        Expression *expr = expr_refs.items[i];
-        print_expression(stdout, *expr); printf("\n");
+    if (dump_expressions) {
+        for (size_t i = 0; i < expr_refs.count; ++i) {
+            Expression *expr = expr_refs.items[i];
+            print_expression(stdout, *expr); printf("\n");
+        }
     }
 
     arena_free(&expr_arena);
