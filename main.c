@@ -16,12 +16,12 @@
 static bool DEBUG_PRINT = false;
 
 // TODO:Implement every expression parsing for C:
-// expression     → equality ;
-// equality       → comparison ( ( "!=" | "==" ) comparison )* ;
-// comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
-// term           → factor ( ( "-" | "+" ) factor )* ;
-// factor         → unary ( ( "/" | "*" ) unary )* ;
-// unary          → ( "!" | "-" ) unary
+// expression     -> equality ;
+// equality       -> comparison ( ( "!=" | "==" ) comparison )* ;
+// comparison     -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+// term           -> factor ( ( "-" | "+" ) factor )* ;
+// factor         -> unary ( ( "/" | "*" ) unary )* ;
+// unary          -> ( "!" | "-" ) unary
 //                | primary ;
 // suffixes       → ( "++" | "--" ) IDENT
 // primary        → NUMBER | STRING | IDENT | "true" | "false" | "null"
