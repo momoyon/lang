@@ -25,17 +25,19 @@
 
 static bool DEBUG_PRINT = false;
 
-// TODO:Implement every expression parsing for C:
-// expression     -> equality ;
+// TODO:Implement every expr parsing for C:
+// expr     -> equality ;
 // equality       -> comparison ( ( "!=" | "==" ) comparison )* ;
 // comparison     -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 // term           -> factor ( ( "-" | "+" ) factor )* ;
 // factor         -> unary ( ( "/" | "*" ) unary )* ;
 // unary          -> ( "!" | "-" ) unary
 //                | primary ;
+// funcalls       -> IDENT "(" ( IDENT "," )* ")"
+//                  | IDENT "(" IDENT ")"
 // suffixes       -> IDENT ( "++" | "--" )
 // primary        -> NUMBER | STRING | IDENT | "true" | "false" | "null"
-//                | "(" expression ")" ;
+//                | "(" expr ")" ;
 
 /* NOTE: We are referencing this table: https://en.cppreference.com/w/c/language/operator_precedence
  * PRECEDENCE TABLE
@@ -93,7 +95,7 @@ static bool DEBUG_PRINT = false;
  * --------------------+-------------------------------------+-----------+-----
  * Unary Plus/Minus    | + -                                 | Right     |
  * --------------------+-------------------------------------+-----------+-----
- * Prefix Inc/Dec      | ++ --                               | Right     | X
+ * Prefix Inc/Dec      | ++ --                               | Right     |
  * --------------------+-------------------------------------+-----------+-----
  * Compound Lit        | (type){list}                        | Left      |
  * --------------------+-------------------------------------+-----------+-----
@@ -103,9 +105,9 @@ static bool DEBUG_PRINT = false;
  * --------------------+-------------------------------------+-----------+-----
  * Function Call       | IDENT()                             | Left      |
  * --------------------+-------------------------------------+-----------+-----
- * Suffix Inc/Dec      | ++ --                               | Left      |
+ * Suffix Inc/Dec      | ++ --                               | Left      | X
  * --------------------+-------------------------------------+-----------+-----
- * Primary             | IDENTS NUMBERS STRINGS CHARS (expr) | -         | X
+ * Primary             | IDENTS NUMBERS STRINGS CHARS (ast) | -         | X
  * --------------------+-------------------------------------+-----------+-----
  */
 
@@ -273,14 +275,15 @@ void free_parser(Parser *p);
 
 ///
 
-/// NOTE: Expressions (Ig these should be called `AST` instead of `expression`?
-typedef struct Expression Expression;
-typedef struct Unary_expression Unary_expression;
-typedef struct Binary_expression Binary_expression;
-typedef struct Primary_expression Primary_expression;
+/// NOTE: ASTs and Expressions
 typedef struct Literal Literal;
 typedef enum   Literal_kind Literal_kind;
-typedef enum   Primary_expression_kind Primary_expression_kind;
+typedef struct Binary_expr Binary_expr;
+typedef struct Funcall_AST Funcall_AST;
+typedef struct Unary_expr Unary_expr;
+typedef struct Primary_expr Primary_expr;
+typedef struct AST AST;
+typedef enum   Primary_expr_kind Primary_expr_kind;
 
 struct Literal {
     union {
@@ -305,70 +308,86 @@ enum Literal_kind {
 
 const char *lit_kind_as_str(Literal_kind k);
 
-struct Unary_expression {
+struct Unary_expr {
     Token operator;
-    Expression *operand;
+    AST *operand;
     bool suffix;
 };
 
-struct Binary_expression {
-    Token operator;
-    Expression *lhs;
-    Expression *rhs;
+// NOTE: Predecl for Identifiers
+typedef struct Identifier Identifier;
+typedef struct {
+    Identifier *items;
+    size_t count;
+    size_t capacity;
+} Identifiers;
+
+struct Funcall_AST {
+    Token name;
+    Identifiers arguments;
 };
 
-enum Primary_expression_kind {
+struct Binary_expr {
+    Token operator;
+    AST *lhs;
+    AST *rhs;
+};
+
+enum Primary_expr_kind {
     PRIMARY_VALUE,
     PRIMARY_IDENT,
     PRIMARY_COUNT,
 };
 
-struct Primary_expression {
-    Primary_expression_kind kind;
+struct Primary_expr {
+    Primary_expr_kind kind;
     Literal value;
     Literal_kind value_kind;
     String_view identifier_key;
 };
 
-void print_primary_expression(FILE *f, Primary_expression *pe);
+void print_primary_expr(FILE *f, Primary_expr *pe);
 
 typedef enum {
-    EXPR_BINARY,
-    EXPR_UNARY,
-    EXPR_PRIMARY,
-    EXPR_COUNT,
-} Expression_kind;
+    AST_INVALID,
+    AST_BINARY,
+    AST_UNARY,
+    AST_PRIMARY,
+    AST_FUNCALL,
+    AST_COUNT,
+} AST_kind;
 
-const char *expression_kind_as_str(Expression_kind k);
+const char *ast_kind_as_str(AST_kind k);
 
-struct Expression {
-    Expression_kind kind;
-    Binary_expression *bin_expr;
-    Primary_expression *prim_expr;
-    Unary_expression *unary_expr;
+struct AST {
+    AST_kind kind;
+    Binary_expr *bin_ast;
+    Primary_expr *prim_ast;
+    Unary_expr *unary_ast;
+    Funcall_AST *funcall;
     Location loc;
 };
 
-void print_expression_as_value(FILE *f, Expression e);
-void print_expression(FILE *f, Expression e);
+void print_ast_as_value(FILE *f, AST e);
+void print_ast(FILE *f, AST e);
 
 typedef struct {
-    Expression **items;
+    AST **items;
     size_t count;
     size_t capacity;
-} Expression_refs;
+} AST_refs;
 
 ///
 
 /// Identifiers
 
-typedef struct {
+struct Identifier {
     String_view name;
     Literal value;
     Literal_kind value_kind;
     bool not_declared;
-    Primary_expression *prim_expr;
-} Identifier;
+    Primary_expr *prim_ast;
+};
 
 typedef struct {
     String_view key;
@@ -392,8 +411,8 @@ void help(const char *program) {
     info("  -v                Prints the version of the compiler.");
     info("Subcommands: ");
     info("  help              Prints this help message.");
-    info("  dump_tokens       Dumps the tokens scanned and exit.");
-    info("  dump_expressions  Dumps the tokens scanned and exit.");
+    info("  dump_tokens       Dumps the tokens lexed and exit.");
+    info("  dump_ast          Dumps the ASTs parsed and exit.");
 }
 
 void print_loc(FILE *f, Location loc) {
@@ -447,19 +466,21 @@ const char *lit_kind_as_str(Literal_kind k) {
     return "YOU SHOULD NOT SEE THIS!";
 }
 
-const char *expression_kind_as_str(Expression_kind k) {
+const char *expr_kind_as_str(AST_kind k) {
     switch (k) {
-        case EXPR_BINARY: return "BINARY";
-        case EXPR_UNARY: return "UNARY";
-        case EXPR_PRIMARY: return "PRIMARY";
-        case EXPR_COUNT:
+        case AST_INVALID: return "INVALID";
+        case AST_BINARY: return "BINARY";
+        case AST_UNARY: return "UNARY";
+        case AST_PRIMARY: return "PRIMARY";
+        case AST_FUNCALL: return "FUNCALL";
+        case AST_COUNT:
         default: ASSERT(false, "UNREACHABLE!");
     }
 
     return "YOU SHOULD NOT SEE THIS!";
 }
 
-void print_primary_expression(FILE *f, Primary_expression *pe) {
+void print_primary_expr(FILE *f, Primary_expr *pe) {
     if (pe->kind == PRIMARY_VALUE) {
         print_literal(f, pe->value, pe->value_kind);
     } else if (pe->kind == PRIMARY_IDENT) {
@@ -478,42 +499,51 @@ void print_primary_expression(FILE *f, Primary_expression *pe) {
     }
 }
 
-void print_expression_as_value(FILE *f, Expression e) {
+void print_ast_as_value(FILE *f, AST e) {
     switch (e.kind) {
-        case EXPR_BINARY: {
+        case AST_INVALID: {
+            ASSERT(false, "Trying to print an invalid AST!");
+        } break;
+        case AST_BINARY: {
             fprintf(f, "(");
-            print_expression_as_value(f, *e.bin_expr->lhs);
-            fprintf(f, " %s ", token_type_as_str(e.bin_expr->operator.type));
-            print_expression_as_value(f, *e.bin_expr->rhs);
+            print_ast_as_value(f, *e.bin_ast->lhs);
+            fprintf(f, " %s ", token_type_as_str(e.bin_ast->operator.type));
+            print_ast_as_value(f, *e.bin_ast->rhs);
             fprintf(f, ")");
 
         } break;
-        case EXPR_UNARY: {
-            if (e.unary_expr->suffix) {
+        case AST_UNARY: {
+            if (e.unary_ast->suffix) {
                 fprintf(f, "(");
-                print_expression_as_value(f, *e.unary_expr->operand);
+                print_ast_as_value(f, *e.unary_ast->operand);
                 fprintf(f, ")");
-                fprintf(f, " %s ", token_type_as_str(e.unary_expr->operator.type));
+                fprintf(f, " %s ", token_type_as_str(e.unary_ast->operator.type));
             } else {
-                fprintf(f, " %s ", token_type_as_str(e.unary_expr->operator.type));
+                fprintf(f, " %s ", token_type_as_str(e.unary_ast->operator.type));
                 fprintf(f, "(");
-                print_expression_as_value(f, *e.unary_expr->operand);
+                print_ast_as_value(f, *e.unary_ast->operand);
                 fprintf(f, ")");
             }
 
         } break;
-        case EXPR_PRIMARY: {
-            print_primary_expression(f, e.prim_expr);
+        case AST_PRIMARY: {
+            print_primary_expr(f, e.prim_ast);
         } break;
-        case EXPR_COUNT:
+        case AST_FUNCALL: {
+            fprintf(f, SV_FMT, SV_ARG(e.funcall->name.lexeme));
+            fprintf(f, "(");
+            // TODO: print arguments
+            fprintf(f, ")");
+        } break;
+        case AST_COUNT:
         default: ASSERT(false, "UNREACHABLE!");
     }
 }
 
-void print_expression(FILE *f, Expression e) {
+void print_ast(FILE *f, AST e) {
     print_loc(f, e.loc);
-    fprintf(f, " [%s] '", expression_kind_as_str(e.kind));
-    print_expression_as_value(f, e);
+    fprintf(f, " [%s] '", expr_kind_as_str(e.kind));
+    print_ast_as_value(f, e);
     fprintf(f, "'");
 }
 
@@ -702,26 +732,27 @@ bool parser_eof(Parser *p) {
 
 
 // Predecls
-Expression *parse_primary(Arena *arena, Parser *p);
-Expression *parse_suffixes(Arena *arena, Parser *p);
-Expression *parse_unary(Arena *arena, Parser *p);
-Expression *parse_factor(Arena *arena, Parser *p);
-Expression *parse_comparision(Arena *arena, Parser *p);
-Expression *parse_term(Arena *arena, Parser *p);
-Expression *parse_equality(Arena *arena, Parser *p);
-Expression *parse_expression(Arena *arena, Parser *p);
+AST *parse_primary(Arena *arena, Parser *p);
+AST *parse_suffixes(Arena *arena, Parser *p);
+AST *parse_funcall(Arena *arena, Parser *p);
+AST *parse_unary(Arena *arena, Parser *p);
+AST *parse_factor(Arena *arena, Parser *p);
+AST *parse_comparision(Arena *arena, Parser *p);
+AST *parse_term(Arena *arena, Parser *p);
+AST *parse_equality(Arena *arena, Parser *p);
+AST *parse(Arena *arena, Parser *p);
 
-Expression *parse_primary(Arena *arena, Parser *p) {
+AST *parse_primary(Arena *arena, Parser *p) {
     // NOTE: We can advance here because primary is the last rule
     // TODO: Somehow parser_advance() here breaks it.
     Token t = parser_peek(p);
 
     if (t.type != TK_LEFT_PAREN) {
-        Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
-        expr->kind = EXPR_PRIMARY;
-        expr->loc = t.loc;
-        expr->prim_expr = (Primary_expression *)arena_alloc(arena, sizeof(Primary_expression));
-        expr->prim_expr->kind = PRIMARY_VALUE;
+        AST *ast = (AST *)arena_alloc(arena, sizeof(AST));
+        ast->kind = AST_PRIMARY;
+        ast->loc = t.loc;
+        ast->prim_ast = (Primary_expr *)arena_alloc(arena, sizeof(Primary_expr));
+        ast->prim_ast->kind = PRIMARY_VALUE;
         parser_advance(p);
         if (t.type == TK_IDENT) {
             Identifier_KV *ident_kv = hmgetp_null(identifier_map, t.lexeme);
@@ -737,211 +768,237 @@ Expression *parse_primary(Arena *arena, Parser *p) {
             ASSERT(ident_kv != NULL, "We fucked something up above!");
             Identifier ident = ident_kv->value;
 
-            expr->prim_expr->identifier_key = t.lexeme;
+            ast->prim_ast->identifier_key = t.lexeme;
             if (ident.not_declared) {
-                // If the ident is not declared yet, mark the primary_expr it needs to update the value of for later.
-                ident_kv->value.prim_expr = expr->prim_expr;
+                // If the ident is not declared yet, mark the primary_ast it needs to update the value of for later.
+                ident_kv->value.prim_ast = ast->prim_ast;
             } else {
-                // If the ident is declared, set the value of the expression!
-                expr->prim_expr->value = ident.value;
-                expr->prim_expr->value_kind = ident.value_kind;
+                // If the ident is declared, set the value of the expr!
+                ast->prim_ast->value = ident.value;
+                ast->prim_ast->value_kind = ident.value_kind;
             }
-            expr->prim_expr->kind = PRIMARY_IDENT;
+            ast->prim_ast->kind = PRIMARY_IDENT;
 
-            return expr;
+            return ast;
             ASSERT(false, "UNIMPLEMENTED!");
         } else if (token_is_number(t)) {
             if (t.type == TK_INT) {
                 int i_count = -1;
                 int i = sv_to_int(t.lexeme, &i_count, 10);
                 ASSERT(i_count != -1, "We made a mistake in lexing of integers!");
-                expr->prim_expr->value.as.i = i;
-                expr->prim_expr->value_kind = LIT_INT;
-                return expr;
+                ast->prim_ast->value.as.i = i;
+                ast->prim_ast->value_kind = LIT_INT;
+                return ast;
             } else if (t.type == TK_FLOAT) {
                 int f_count = -1;
                 float f = sv_to_float(t.lexeme, &f_count);
                 ASSERT(f_count != -1, "We made a mistake in lexing of floats!");
-                expr->prim_expr->value.as.f = f;
-                expr->prim_expr->value_kind = LIT_FLOAT;
-                return expr;
+                ast->prim_ast->value.as.f = f;
+                ast->prim_ast->value_kind = LIT_FLOAT;
+                return ast;
             } else {
 
             }
         } else if (t.type == TK_STRING) {
-            expr->prim_expr->value_kind = LIT_STRING;
-            expr->prim_expr->value.as.str = sv_to_cstr(t.lexeme);
-            return expr;
+            ast->prim_ast->value_kind = LIT_STRING;
+            ast->prim_ast->value.as.str = sv_to_cstr(t.lexeme);
+            return ast;
         } else if (t.type == TK_CHAR) {
-            expr->prim_expr->value_kind = LIT_CHAR;
-            expr->prim_expr->value.as.ch = *t.lexeme.data;
-            return expr;
+            ast->prim_ast->value_kind = LIT_CHAR;
+            ast->prim_ast->value.as.ch = *t.lexeme.data;
+            return ast;
         } else if (t.type == TK_BOOL) {
-            expr->prim_expr->value_kind = LIT_BOOL;
-            expr->prim_expr->value.as.b = sv_equals(t.lexeme, SV("true"));
-            return expr;
+            ast->prim_ast->value_kind = LIT_BOOL;
+            ast->prim_ast->value.as.b = sv_equals(t.lexeme, SV("true"));
+            return ast;
         }
     } else {
         parser_advance(p); // Skip (
-        Expression *expr = parse_expression(arena, p);
+        AST *ast = parse(arena, p);
         if (parser_peek(p).type != TK_RIGHT_PAREN) {
             Token t = parser_peek(p);
             error_pretty(t.loc, (*p->lexer), "Expected ), But got `%s`", token_type_as_str(t.type));
             return NULL;
         }
         parser_advance(p); // Skip )
-        return expr;
+        return ast;
     }
 
-    error_pretty(t.loc, (*p->lexer), "Expected expression, but got `%s`", token_type_as_str(t.type));
+    error_pretty(t.loc, (*p->lexer), "Expected expr, but got `%s`", token_type_as_str(t.type));
     return NULL;
 }
 
-Expression *parse_suffixes(Arena *arena, Parser *p) {
+AST *parse_suffixes(Arena *arena, Parser *p) {
     Token t = parser_peek(p);
 
     if (t.type == TK_IDENT &&
             (parser_peek_by(p, 1).type == TK_PLUS_PLUS ||
              parser_peek_by(p, 1).type == TK_MINUS_MINUS)) {
         //
-        Expression *operand = parse_primary(arena, p);
+        AST *operand = parse_primary(arena, p);
         ASSERT(operand, "We should be able to parse identifiers using parse_primary()!");
         // printf("INFO: CURRENT TOKEN: "); print_token(stdout, parser_peek(p));
 
-        Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
-        expr->loc = t.loc;
-        expr->unary_expr = (Unary_expression *)arena_alloc(arena, sizeof(Unary_expression));
-        expr->kind = EXPR_UNARY;
-        Unary_expression *unary_expr = expr->unary_expr;
-        unary_expr->operator = parser_advance(p);
-        unary_expr->operand = operand;
-        unary_expr->suffix = true;
-        return expr;
+        AST *ast = (AST *)arena_alloc(arena, sizeof(AST));
+        ast->loc = t.loc;
+        ast->unary_ast = (Unary_expr *)arena_alloc(arena, sizeof(Unary_expr));
+        ast->kind = AST_UNARY;
+        Unary_expr *unary_ast = ast->unary_ast;
+        unary_ast->operator = parser_advance(p);
+        unary_ast->operand = operand;
+        unary_ast->suffix = true;
+        return ast;
     }
 
     return parse_primary(arena, p);
 }
 
-Expression *parse_unary(Arena *arena, Parser *p) {
+AST *parse_funcall(Arena *arena, Parser *p) {
     Token t = parser_peek(p);
 
-    if (t.type == TK_NOT || t.type == TK_MINUS) {
-        Expression *expr = (Expression *)arena_alloc(arena, sizeof(Expression));
-        expr->loc = t.loc;
-        expr->unary_expr = (Unary_expression *)arena_alloc(arena, sizeof(Unary_expression));
-        expr->kind = EXPR_UNARY;
-        Unary_expression *unary_expr = expr->unary_expr;
-        unary_expr->operator = parser_advance(p);
-        unary_expr->operand = parse_unary(arena, p);
-        return expr;
+    if (t.type == TK_IDENT && parser_peek_by(p, 1).type == TK_LEFT_PAREN) {
+        AST *ast = (AST *)arena_alloc(arena, sizeof(AST));
+        ast->loc = t.loc;
+        ast->funcall = (Funcall_AST *)arena_alloc(arena, sizeof(Funcall_AST));
+        ast->funcall->name = parser_advance(p);
+        ast->kind = AST_FUNCALL;
+        parser_advance(p); // Skip (
+        Token next = parser_peek(p);
+        if (next.type == TK_RIGHT_PAREN) {
+            parser_advance(p); // Skip )
+            return ast;
+        } else if (next.type == TK_IDENT) {
+            ASSERT(false, "At least one arg funcall");
+        } else {
+            error_pretty(next.loc, (*p->lexer), "Expected Identifier or ) but got '%s'", token_type_as_str(next.type));
+            return NULL;
+        }
+        ASSERT(false, "This should be unreachable!");
     }
 
     return parse_suffixes(arena, p);
 }
 
-Expression *parse_factor(Arena *arena, Parser *p) {
-    Expression *expr = parse_unary(arena, p);
-    if (expr == NULL) return NULL;
+AST *parse_unary(Arena *arena, Parser *p) {
+    Token t = parser_peek(p);
+
+    if (t.type == TK_NOT || t.type == TK_MINUS) {
+        AST *ast = (AST *)arena_alloc(arena, sizeof(AST));
+        ast->loc = t.loc;
+        ast->unary_ast = (Unary_expr *)arena_alloc(arena, sizeof(Unary_expr));
+        ast->kind = AST_UNARY;
+        Unary_expr *unary_ast = ast->unary_ast;
+        unary_ast->operator = parser_advance(p);
+        unary_ast->operand = parse_unary(arena, p);
+        return ast;
+    }
+
+    return parse_funcall(arena, p);
+}
+
+AST *parse_factor(Arena *arena, Parser *p) {
+    AST *ast = parse_unary(arena, p);
+    if (ast == NULL) return NULL;
 
     while (parser_match(p, TK_DIVIDE) || parser_match(p, TK_MULTIPLY)) {
         Token op = parser_previous(p);
-        Expression *rhs = parse_unary(arena, p);
+        AST *rhs = parse_unary(arena, p);
         if (rhs == NULL) return rhs;
 
-        Expression *new_expr = (Expression *)arena_alloc(arena, sizeof(Expression));
-        new_expr->kind = EXPR_BINARY;
-        new_expr->loc = expr->loc;
-        new_expr->bin_expr = (Binary_expression *)arena_alloc(arena, sizeof(Binary_expression));
-        new_expr->bin_expr->lhs = expr;
-        new_expr->bin_expr->operator = op;
-        new_expr->bin_expr->rhs = rhs;
+        AST *new_ast = (AST *)arena_alloc(arena, sizeof(AST));
+        new_ast->kind = AST_BINARY;
+        new_ast->loc = ast->loc;
+        new_ast->bin_ast = (Binary_expr *)arena_alloc(arena, sizeof(Binary_expr));
+        new_ast->bin_ast->lhs = ast;
+        new_ast->bin_ast->operator = op;
+        new_ast->bin_ast->rhs = rhs;
 
-        expr = new_expr;
+        ast = new_ast;
     }
 
-    return expr;
+    return ast;
 }
 
-Expression *parse_term(Arena *arena, Parser *p) {
-    Expression *expr = parse_factor(arena, p);
-    if (expr == NULL) return NULL;
-    /*printf("factor expr: %p\n", expr);*/
+AST *parse_term(Arena *arena, Parser *p) {
+    AST *ast = parse_factor(arena, p);
+    if (ast == NULL) return NULL;
+    /*printf("factor ast: %p\n", ast);*/
 
     while (parser_match(p, TK_MINUS) || parser_match(p, TK_PLUS)) {
         Token operator = parser_previous(p);
 
-        Expression *rhs = parse_factor(arena, p);
+        AST *rhs = parse_factor(arena, p);
         if (rhs == NULL) return NULL;
 
-        Expression *new_expr = (Expression *)arena_alloc(arena, sizeof(Expression));
-        new_expr->kind = EXPR_BINARY;
-        new_expr->loc = expr->loc;
-        new_expr->bin_expr = (Binary_expression *)arena_alloc(arena, sizeof(Binary_expression));
-        new_expr->bin_expr->lhs = expr;
-        new_expr->bin_expr->operator = operator;
-        new_expr->bin_expr->rhs = rhs;
+        AST *new_ast = (AST *)arena_alloc(arena, sizeof(AST));
+        new_ast->kind = AST_BINARY;
+        new_ast->loc = ast->loc;
+        new_ast->bin_ast = (Binary_expr *)arena_alloc(arena, sizeof(Binary_expr));
+        new_ast->bin_ast->lhs = ast;
+        new_ast->bin_ast->operator = operator;
+        new_ast->bin_ast->rhs = rhs;
 
-        expr = new_expr;
+        ast = new_ast;
     }
 
-    return expr;
+    return ast;
 }
 
-Expression *parse_comparision(Arena *arena, Parser *p) {
-    Expression *expr = parse_term(arena, p);
-    if (expr == NULL) return NULL;
-    /*printf("term expr: %p\n", expr);*/
+AST *parse_comparision(Arena *arena, Parser *p) {
+    AST *ast = parse_term(arena, p);
+    if (ast == NULL) return NULL;
+    /*printf("term ast: %p\n", ast);*/
 
     while (parser_match(p, TK_GT) || parser_match(p, TK_GTE) ||
            parser_match(p, TK_LT) || parser_match(p, TK_LTE)) {
         Token operator = parser_previous(p);
 
-        Expression *rhs = parse_term(arena, p);
+        AST *rhs = parse_term(arena, p);
         if (rhs == NULL) return NULL;
 
-        Expression *new_expr = (Expression *)arena_alloc(arena, sizeof(Expression));
-        new_expr->kind = EXPR_BINARY;
-        new_expr->loc = expr->loc;
-        new_expr->bin_expr = (Binary_expression *)arena_alloc(arena, sizeof(Binary_expression));
-        new_expr->bin_expr->lhs = expr;
-        new_expr->bin_expr->operator = operator;
-        new_expr->bin_expr->rhs = rhs;
+        AST *new_ast = (AST *)arena_alloc(arena, sizeof(AST));
+        new_ast->kind = AST_BINARY;
+        new_ast->loc = ast->loc;
+        new_ast->bin_ast = (Binary_expr *)arena_alloc(arena, sizeof(Binary_expr));
+        new_ast->bin_ast->lhs = ast;
+        new_ast->bin_ast->operator = operator;
+        new_ast->bin_ast->rhs = rhs;
 
-        expr = new_expr;
+        ast = new_ast;
     }
 
-    return expr;
+    return ast;
 }
 
-Expression *parse_equality(Arena *arena, Parser *p) {
-    Expression *expr = parse_comparision(arena, p);
-    if (expr == NULL) return NULL;
-    /*printf("comparision expr: %p\n", expr);*/
+AST *parse_equality(Arena *arena, Parser *p) {
+    AST *ast = parse_comparision(arena, p);
+    if (ast == NULL) return NULL;
+    /*printf("comparision ast: %p\n", ast);*/
 
     while (parser_match(p, TK_NOT_EQUAL) || parser_match(p, TK_EQUAL_EQUAL)) {
         Token operator = parser_previous(p);
 
-        Expression *rhs = parse_comparision(arena, p);
+        AST *rhs = parse_comparision(arena, p);
         if (rhs == NULL) return NULL;
 
-        Expression *new_expr = (Expression *)arena_alloc(arena, sizeof(Expression));
-        new_expr->kind = EXPR_BINARY;
-        new_expr->loc = expr->loc;
-        new_expr->bin_expr = (Binary_expression *)arena_alloc(arena, sizeof(Binary_expression));
-        new_expr->bin_expr->lhs = expr;
-        new_expr->bin_expr->operator = operator;
-        new_expr->bin_expr->rhs = rhs;
+        AST *new_ast = (AST *)arena_alloc(arena, sizeof(AST));
+        new_ast->kind = AST_BINARY;
+        new_ast->loc = ast->loc;
+        new_ast->bin_ast = (Binary_expr *)arena_alloc(arena, sizeof(Binary_expr));
+        new_ast->bin_ast->lhs = ast;
+        new_ast->bin_ast->operator = operator;
+        new_ast->bin_ast->rhs = rhs;
 
-        expr = new_expr;
+        ast = new_ast;
     }
 
-    return expr;
+    return ast;
 }
 
-Expression *parse_expression(Arena *arena, Parser *p) {
-    Expression *expr = parse_equality(arena, p);
-    /*printf("equality expr: %p\n", expr);*/
-    return expr;
+AST *parse(Arena *arena, Parser *p) {
+    AST *ast = parse_equality(arena, p);
+    /*printf("equality ast: %p\n", ast);*/
+    return ast;
 }
 
 Lexer make_lexer(const char *filename) {
@@ -1578,7 +1635,7 @@ int main(int argc, char **argv) {
     const char *filename = NULL;
 
     bool dump_tokens = false;
-    bool dump_expressions = false;
+    bool dump_ast = false;
 
     while (argc > 0) {
         const char *arg = shift_args(argv, argc);
@@ -1606,8 +1663,8 @@ int main(int argc, char **argv) {
                 return 0;
             } else if (strcmp(arg, "dump_tokens") == 0) {
                 dump_tokens = true;
-            } else if (strcmp(arg, "dump_expressions") == 0) {
-                dump_expressions = true;
+            } else if (strcmp(arg, "dump_ast") == 0) {
+                dump_ast = true;
             } else {
                 if (filename == NULL) {
                     filename = arg;
@@ -1644,31 +1701,31 @@ int main(int argc, char **argv) {
 
     Parser p = make_parser(&l, tokens);
 
-    Arena expr_arena = arena_make(0);
+    Arena arena = arena_make(0);
 
-    Expression_refs expr_refs = {0};
+    AST_refs ast_refs = {0};
 
-    Expression *expr = parse_expression(&expr_arena, &p);
-    while (expr != NULL) {
+    AST *ast = parse(&arena, &p);
+    while (ast != NULL) {
         if (!parser_match(&p, TK_SEMICOLON)) {
             error_pretty(parser_peek(&p).loc, (*p.lexer), "Expected semicolon but got '%s'", token_type_as_str(parser_peek(&p).type));
             return 1;
         }
-        da_append(expr_refs, expr);
+        da_append(ast_refs, ast);
         if (parser_eof(&p)) {
             break;
         };
-        expr = parse_expression(&expr_arena, &p);
+        ast = parse(&arena, &p);
     }
 
-    if (dump_expressions) {
-        for (size_t i = 0; i < expr_refs.count; ++i) {
-            Expression *expr = expr_refs.items[i];
-            print_expression(stdout, *expr); printf("\n");
+    if (dump_ast) {
+        for (size_t i = 0; i < ast_refs.count; ++i) {
+            AST *ast = ast_refs.items[i];
+            print_ast(stdout, *ast); printf("\n");
         }
     }
 
-    arena_free(&expr_arena);
+    arena_free(&arena);
     free_parser(&p);
     free_lexer(&l);
     return 0;
