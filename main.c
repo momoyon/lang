@@ -1627,6 +1627,11 @@ int main(int argc, char **argv) {
 
     Lexer l = make_lexer(filename);
 
+    if (l.src.count == 0) {
+        log_error("That's an empty file, I don't know what to do with it...");
+        return 1;
+    }
+
     Tokens tokens = lex(&l);
 
     if (dump_tokens) {
