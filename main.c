@@ -250,7 +250,6 @@ void consume_single_char(Lexer *l, String_view *sv_out, Location *loc_out);
 void consume_number(Lexer *l, String_view *sv_out, Location *loc_out);
 void consume_comment(Lexer *l, String_view *sv_out, Location *loc_out);
 void left_trim(Lexer *l);
-bool next_token(Lexer *l, Token *t_out);
 void free_lexer(Lexer *l);
 
 ///
@@ -1214,6 +1213,7 @@ void consume_comment(Lexer *l, String_view *sv_out, Location *loc_out) {
     }
 }
 
+// TODO: Somehow remove '\r's because that is causing the col of EOF to be one off...
 void left_trim(Lexer *l) {
     while (!eof(l) && isspace(current_char(l))) {
         if (current_char(l) == '\n') {
