@@ -1216,7 +1216,7 @@ void consume_comment(Lexer *l, String_view *sv_out, Location *loc_out) {
 
 void left_trim(Lexer *l) {
     while (!eof(l) && isspace(current_char(l))) {
-        if (current_char(l) == '\n' || (current_char(l) == '\r' && next_char(l) == '\n')) {
+        if (current_char(l) == '\n') {
             Line line = {
                 .offset = l->bol,
                 .count = col(l),
