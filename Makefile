@@ -8,3 +8,5 @@ lang: main.c
 
 debug: main.c
 	$(CC) $(CFLAGS) -DDEBUG=1 -o lang-debug $< $(LDFLAGS) $(LIBS)
+
+all: lang debug
