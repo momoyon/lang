@@ -26,17 +26,18 @@
 static bool DEBUG_PRINT = false;
 
 // TODO:Implement every expr parsing for C:
-// ast            -> equality ;
-// equality       -> comparison ( ( "!=" | "==" ) comparison )* ;
-// comparison     -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
-// term           -> factor ( ( "-" | "+" ) factor )* ;
-// factor         -> unary ( ( "/" | "*" ) unary )* ;
-// unary          -> ( "!" | "-" ) unary
+// ast             -> equality ;
+// equality        -> comparison ( ( "!=" | "==" ) comparison )* ;
+// comparison      -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+// term            -> factor ( ( "-" | "+" ) factor )* ;
+// factor          -> unary ( ( "/" | "*" ) unary )* ;
+// unary           -> ( "!" | "-" ) unary
 //                | primary ;
-// funcalls       -> IDENT "(" ( ast "," )* ")"
-//                  | IDENT "(" IDENT ")"
-// suffixes       -> IDENT ( "++" | "--" )
-// primary        -> NUMBER | STRING | IDENT | "true" | "false" | "null"
+// array subscript -> IDENT "[" NUMBER "]"
+// funcalls        -> IDENT "(" ( ast "," )* ")"
+//                   | IDENT "(" IDENT ")"
+// suffix          -> IDENT ( "++" | "--" )
+// primary         -> NUMBER | STRING | IDENT | "true" | "false" | "null"
 //                | "(" ast ")" ;
 
 /* NOTE: We are referencing this table: https://en.cppreference.com/w/c/language/operator_precedence
@@ -103,11 +104,11 @@ static bool DEBUG_PRINT = false;
  * --------------------+-------------------------------------+-----------+-----
  * Array Subscripting  | []                                  | Left      |
  * --------------------+-------------------------------------+-----------+-----
- * Function Call       | IDENT()                             | Left      |
+ * Function Call       | ()                                  | Left      | X
  * --------------------+-------------------------------------+-----------+-----
  * Suffix Inc/Dec      | ++ --                               | Left      | X
  * --------------------+-------------------------------------+-----------+-----
- * Primary             | IDENTS NUMBERS STRINGS CHARS (ast) | -         | X
+ * Primary             | IDENTS NUMBERS STRINGS CHARS (ast)  | -         | X
  * --------------------+-------------------------------------+-----------+-----
  */
 
@@ -734,8 +735,9 @@ bool parser_eof(Parser *p) {
 
 // Predecls
 AST *parse_primary(Arena *arena, Parser *p);
-AST *parse_suffixes(Arena *arena, Parser *p);
+AST *parse_suffix(Arena *arena, Parser *p);
 AST *parse_funcall(Arena *arena, Parser *p);
+AST *parse_array_subscript(Arena *arena, Parser *p);
 AST *parse_unary(Arena *arena, Parser *p);
 AST *parse_factor(Arena *arena, Parser *p);
 AST *parse_comparision(Arena *arena, Parser *p);
@@ -811,6 +813,13 @@ AST *parse_primary(Arena *arena, Parser *p) {
             ast->prim_expr->value_kind = LIT_BOOL;
             ast->prim_expr->value.as.b = sv_equals(t.lexeme, SV("true"));
             return ast;
+        } else if (t.type == TK_NULL) {
+            ast->prim_expr->value_kind = LIT_INT; // TODO: Should we introduce a LIT_NULL?
+            ast->prim_expr->value.as.i = 0;
+            return ast;
+        } else {
+            printf("Unexpected Token: "), print_token(stdout, t); printf("\n");
+            ASSERT(false, "^");
         }
     } else {
         parser_advance(p); // Skip (
@@ -828,7 +837,7 @@ AST *parse_primary(Arena *arena, Parser *p) {
     return NULL;
 }
 
-AST *parse_suffixes(Arena *arena, Parser *p) {
+AST *parse_suffix(Arena *arena, Parser *p) {
     Token t = parser_peek(p);
 
     if (t.type == TK_IDENT &&
@@ -895,7 +904,11 @@ AST *parse_funcall(Arena *arena, Parser *p) {
         ASSERT(false, "This should be unreachable!");
     }
 
-    return parse_suffixes(arena, p);
+    return parse_suffix(arena, p);
+}
+
+AST *parse_array_subscript(Arena *arena, Parser *p) {
+    return parse_funcall(arena, p);
 }
 
 AST *parse_unary(Arena *arena, Parser *p) {
@@ -912,7 +925,7 @@ AST *parse_unary(Arena *arena, Parser *p) {
         return ast;
     }
 
-    return parse_funcall(arena, p);
+    return parse_array_subscript(arena, p);
 }
 
 AST *parse_factor(Arena *arena, Parser *p) {
