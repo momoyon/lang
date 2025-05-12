@@ -486,7 +486,7 @@ void print_primary_expr(FILE *f, Primary_expr *pe) {
         ASSERT(ident_kv != NULL, "The identifier should be in the identifier_map!");
         Identifier ident = ident_kv->value;
 
-        fprintf(f, "[IDENT] '"SV_FMT"': ", SV_ARG(ident.name));
+        fprintf(f, "'"SV_FMT"': ", SV_ARG(ident.name));
         if (ident.not_declared) {
             fprintf(f, "???");
         } else {
