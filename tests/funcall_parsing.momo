@@ -1,0 +1,8 @@
+funcall();
+
+funcall(1);
+
+foo(bar,
+    baz, 1, 2, 3);
+
+a(b(c(bar, baz)));
