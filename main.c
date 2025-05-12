@@ -21,23 +21,23 @@
 #define log_debug(...)
 #endif
 
-#define COMPILER_VERSION "v0.0.7"
+#define COMPILER_VERSION "v0.0.8"
 
 static bool DEBUG_PRINT = false;
 
 // TODO:Implement every expr parsing for C:
-// expr     -> equality ;
+// ast            -> equality ;
 // equality       -> comparison ( ( "!=" | "==" ) comparison )* ;
 // comparison     -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 // term           -> factor ( ( "-" | "+" ) factor )* ;
 // factor         -> unary ( ( "/" | "*" ) unary )* ;
 // unary          -> ( "!" | "-" ) unary
 //                | primary ;
-// funcalls       -> IDENT "(" ( IDENT "," )* ")"
+// funcalls       -> IDENT "(" ( ast "," )* ")"
 //                  | IDENT "(" IDENT ")"
 // suffixes       -> IDENT ( "++" | "--" )
 // primary        -> NUMBER | STRING | IDENT | "true" | "false" | "null"
-//                | "(" expr ")" ;
+//                | "(" ast ")" ;
 
 /* NOTE: We are referencing this table: https://en.cppreference.com/w/c/language/operator_precedence
  * PRECEDENCE TABLE
@@ -314,17 +314,15 @@ struct Unary_expr {
     bool suffix;
 };
 
-// NOTE: Predecl for Identifiers
-typedef struct Identifier Identifier;
 typedef struct {
-    Identifier *items;
+    AST **items;
     size_t count;
     size_t capacity;
-} Identifiers;
+} ASTs;
 
 struct Funcall_AST {
     Token name;
-    Identifiers arguments;
+    ASTs arguments;
 };
 
 struct Binary_expr {
@@ -362,7 +360,7 @@ const char *ast_kind_as_str(AST_kind k);
 struct AST {
     AST_kind kind;
     Binary_expr *bin_ast;
-    Primary_expr *prim_ast;
+    Primary_expr *prim_expr;
     Unary_expr *unary_ast;
     Funcall_AST *funcall;
     Location loc;
@@ -381,13 +379,13 @@ typedef struct {
 
 /// Identifiers
 
-struct Identifier {
+typedef struct {
     String_view name;
     Literal value;
     Literal_kind value_kind;
     bool not_declared;
-    Primary_expr *prim_ast;
-};
+    Primary_expr *prim_expr;
+} Identifier;
 
 typedef struct {
     String_view key;
@@ -527,12 +525,15 @@ void print_ast_as_value(FILE *f, AST e) {
 
         } break;
         case AST_PRIMARY: {
-            print_primary_expr(f, e.prim_ast);
+            print_primary_expr(f, e.prim_expr);
         } break;
         case AST_FUNCALL: {
             fprintf(f, SV_FMT, SV_ARG(e.funcall->name.lexeme));
             fprintf(f, "(");
-            // TODO: print arguments
+            for (size_t i = 0; i < e.funcall->arguments.count; ++i) {
+                print_ast_as_value(f, *e.funcall->arguments.items[i]);
+                if (i != e.funcall->arguments.count-1) fprintf(f, ", ");
+            }
             fprintf(f, ")");
         } break;
         case AST_COUNT:
@@ -751,8 +752,8 @@ AST *parse_primary(Arena *arena, Parser *p) {
         AST *ast = (AST *)arena_alloc(arena, sizeof(AST));
         ast->kind = AST_PRIMARY;
         ast->loc = t.loc;
-        ast->prim_ast = (Primary_expr *)arena_alloc(arena, sizeof(Primary_expr));
-        ast->prim_ast->kind = PRIMARY_VALUE;
+        ast->prim_expr = (Primary_expr *)arena_alloc(arena, sizeof(Primary_expr));
+        ast->prim_expr->kind = PRIMARY_VALUE;
         parser_advance(p);
         if (t.type == TK_IDENT) {
             Identifier_KV *ident_kv = hmgetp_null(identifier_map, t.lexeme);
@@ -768,48 +769,47 @@ AST *parse_primary(Arena *arena, Parser *p) {
             ASSERT(ident_kv != NULL, "We fucked something up above!");
             Identifier ident = ident_kv->value;
 
-            ast->prim_ast->identifier_key = t.lexeme;
+            ast->prim_expr->identifier_key = t.lexeme;
             if (ident.not_declared) {
                 // If the ident is not declared yet, mark the primary_ast it needs to update the value of for later.
-                ident_kv->value.prim_ast = ast->prim_ast;
+                ident_kv->value.prim_expr = ast->prim_expr;
             } else {
                 // If the ident is declared, set the value of the expr!
-                ast->prim_ast->value = ident.value;
-                ast->prim_ast->value_kind = ident.value_kind;
+                ast->prim_expr->value = ident.value;
+                ast->prim_expr->value_kind = ident.value_kind;
             }
-            ast->prim_ast->kind = PRIMARY_IDENT;
+            ast->prim_expr->kind = PRIMARY_IDENT;
 
             return ast;
-            ASSERT(false, "UNIMPLEMENTED!");
         } else if (token_is_number(t)) {
             if (t.type == TK_INT) {
                 int i_count = -1;
                 int i = sv_to_int(t.lexeme, &i_count, 10);
                 ASSERT(i_count != -1, "We made a mistake in lexing of integers!");
-                ast->prim_ast->value.as.i = i;
-                ast->prim_ast->value_kind = LIT_INT;
+                ast->prim_expr->value.as.i = i;
+                ast->prim_expr->value_kind = LIT_INT;
                 return ast;
             } else if (t.type == TK_FLOAT) {
                 int f_count = -1;
                 float f = sv_to_float(t.lexeme, &f_count);
                 ASSERT(f_count != -1, "We made a mistake in lexing of floats!");
-                ast->prim_ast->value.as.f = f;
-                ast->prim_ast->value_kind = LIT_FLOAT;
+                ast->prim_expr->value.as.f = f;
+                ast->prim_expr->value_kind = LIT_FLOAT;
                 return ast;
             } else {
 
             }
         } else if (t.type == TK_STRING) {
-            ast->prim_ast->value_kind = LIT_STRING;
-            ast->prim_ast->value.as.str = sv_to_cstr(t.lexeme);
+            ast->prim_expr->value_kind = LIT_STRING;
+            ast->prim_expr->value.as.str = sv_to_cstr(t.lexeme);
             return ast;
         } else if (t.type == TK_CHAR) {
-            ast->prim_ast->value_kind = LIT_CHAR;
-            ast->prim_ast->value.as.ch = *t.lexeme.data;
+            ast->prim_expr->value_kind = LIT_CHAR;
+            ast->prim_expr->value.as.ch = *t.lexeme.data;
             return ast;
         } else if (t.type == TK_BOOL) {
-            ast->prim_ast->value_kind = LIT_BOOL;
-            ast->prim_ast->value.as.b = sv_equals(t.lexeme, SV("true"));
+            ast->prim_expr->value_kind = LIT_BOOL;
+            ast->prim_expr->value.as.b = sv_equals(t.lexeme, SV("true"));
             return ast;
         }
     } else {
@@ -867,11 +867,30 @@ AST *parse_funcall(Arena *arena, Parser *p) {
         if (next.type == TK_RIGHT_PAREN) {
             parser_advance(p); // Skip )
             return ast;
-        } else if (next.type == TK_IDENT) {
-            ASSERT(false, "At least one arg funcall");
         } else {
-            error_pretty(next.loc, (*p->lexer), "Expected Identifier or ) but got '%s'", token_type_as_str(next.type));
-            return NULL;
+            while (true) {
+                AST *arg_ast = parse(arena, p);
+
+                if (arg_ast == NULL) return NULL;
+
+                da_append(ast->funcall->arguments, arg_ast);
+
+                if (parser_peek(p).type == TK_RIGHT_PAREN) {
+                    parser_advance(p); // Skip )
+                    return ast;
+                } else if (parser_peek(p).type == TK_COMMA) {
+                    parser_advance(p); // Skip ,
+                    continue;
+                }
+
+                // Special error message
+                if (parser_peek(p).type == TK_IDENT) {
+                    error_pretty(parser_peek(p).loc, (*p->lexer), "Looks like you forgot a , here?");
+                } else {
+                    error_pretty(parser_peek(p).loc, (*p->lexer), "Expected , or ) after argument but got `%s`", token_type_as_str(parser_peek(p).type));
+                }
+                return NULL;
+            }
         }
         ASSERT(false, "This should be unreachable!");
     }
@@ -1590,6 +1609,9 @@ bool next_token(Lexer *l, Token *t_out) {
             }
 
             LEX_N_CHAR_TOKEN(TK_GT, 1);
+        } break;
+        case ',': {
+            LEX_N_CHAR_TOKEN(TK_COMMA, 1);
         } break;
         // NOTE: Sanity check
         case ' ': {
