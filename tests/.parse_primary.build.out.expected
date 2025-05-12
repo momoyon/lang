@@ -1,0 +1,7 @@
+parse_primary.momo:1:0 [PRIMARY] '123'
+parse_primary.momo:2:1 [PRIMARY] '"string"'
+parse_primary.momo:3:0 [PRIMARY] ''identifier': ???'
+parse_primary.momo:4:0 [PRIMARY] 'true'
+parse_primary.momo:5:0 [PRIMARY] 'false'
+parse_primary.momo:6:0 [PRIMARY] '0'
+parse_primary.momo:7:1 [PRIMARY] ''expression_inside_parenthesis': ???'

@@ -1,0 +1,4 @@
+parse_equality.momo:1:0 [BINARY] '(123 == 2)'
+parse_equality.momo:2:0 [BINARY] '(5.000000 != 'foo': ???)'
+parse_equality.momo:3:0 [BINARY] '('bar': ??? == 'baz': ???)'
+parse_equality.momo:4:0 [BINARY] '('two': ??? != ('a': ??? * 'b': ???))'

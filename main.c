@@ -33,7 +33,9 @@ static bool DEBUG_PRINT = false;
 // factor          -> unary ( ( "/" | "*" ) unary )* ;
 // unary           -> ( "!" | "-" ) unary
 //                | primary ;
-// array subscript -> IDENT "[" NUMBER "]"
+// // TODO:                 Ig there could be a funcall here aswell?
+//                                V
+// array subscript -> IDENT "[" ( IDENT | NUMBER ) "]"
 // funcalls        -> IDENT "(" ( ast "," )* ")"
 //                   | IDENT "(" IDENT ")"
 // suffix          -> IDENT ( "++" | "--" )
@@ -281,6 +283,7 @@ typedef struct Literal Literal;
 typedef enum   Literal_kind Literal_kind;
 typedef struct Binary_expr Binary_expr;
 typedef struct Funcall_AST Funcall_AST;
+typedef struct Subscript_AST Subscript_AST;
 typedef struct Unary_expr Unary_expr;
 typedef struct Primary_expr Primary_expr;
 typedef struct AST AST;
@@ -309,6 +312,7 @@ struct Literal {
 };
 
 void print_literal(FILE *f, Literal value);
+
 struct Unary_expr {
     Token operator;
     AST *operand;
@@ -324,6 +328,11 @@ typedef struct {
 struct Funcall_AST {
     Token name;
     ASTs arguments;
+};
+
+struct Subscript_AST {
+    String_view identifier_key;
+    Primary_expr *index_expr;
 };
 
 struct Binary_expr {
@@ -352,6 +361,7 @@ typedef enum {
     AST_UNARY,
     AST_PRIMARY,
     AST_FUNCALL,
+    AST_SUBSCRIPT,
     AST_COUNT,
 } AST_kind;
 
@@ -359,10 +369,11 @@ const char *ast_kind_as_str(AST_kind k);
 
 struct AST {
     AST_kind kind;
-    Binary_expr *bin_ast;
+    Binary_expr *bin_expr;
     Primary_expr *prim_expr;
-    Unary_expr *unary_ast;
+    Unary_expr *unary_expr;
     Funcall_AST *funcall;
+    Subscript_AST *subscript;
     Location loc;
 };
 
@@ -470,6 +481,7 @@ const char *expr_kind_as_str(AST_kind k) {
         case AST_UNARY: return "UNARY";
         case AST_PRIMARY: return "PRIMARY";
         case AST_FUNCALL: return "FUNCALL";
+        case AST_SUBSCRIPT: return "SUBSCRIPT";
         case AST_COUNT:
         default: ASSERT(false, "UNREACHABLE!");
     }
@@ -534,6 +546,19 @@ void print_ast_as_value(FILE *f, AST e) {
                 if (i != e.funcall->arguments.count-1) fprintf(f, ", ");
             }
             fprintf(f, ")");
+        } break;
+        case AST_SUBSCRIPT: {
+            fprintf(f, SV_FMT, SV_ARG(e.subscript->identifier_key));
+            fprintf(f, "[");
+            print_primary_expr(f, e.subscript->index_expr);
+            // if (e.subscript->index_expr->kind == PRIMARY_VALUE) {
+            //     print_literal(f, e.subscript->index_expr->value);
+            // } else if (e.subscript->index_expr->kind == PRIMARY_IDENT) {
+            //     print_loc(f, e.subscript->index_expr->value);
+            // } else {
+            //     ASSERT(false, "This shouldnt happen");
+            // }
+            fprintf(f, "]");
         } break;
         case AST_COUNT:
         default: ASSERT(false, "UNREACHABLE!");
@@ -735,7 +760,7 @@ bool parser_eof(Parser *p) {
 AST *parse_primary(Arena *arena, Parser *p);
 AST *parse_suffix(Arena *arena, Parser *p);
 AST *parse_funcall(Arena *arena, Parser *p);
-AST *parse_array_subscript(Arena *arena, Parser *p);
+AST *parse_subscript(Arena *arena, Parser *p);
 AST *parse_unary(Arena *arena, Parser *p);
 AST *parse_factor(Arena *arena, Parser *p);
 AST *parse_comparision(Arena *arena, Parser *p);
@@ -905,7 +930,37 @@ AST *parse_funcall(Arena *arena, Parser *p) {
     return parse_suffix(arena, p);
 }
 
-AST *parse_array_subscript(Arena *arena, Parser *p) {
+AST *parse_subscript(Arena *arena, Parser *p) {
+    Token t = parser_peek(p);
+
+    if (t.type == TK_IDENT && parser_peek_by(p, 1).type == TK_LEFT_SQUARE_BRACE) {
+        AST *ast = (AST *)arena_alloc(arena, sizeof(AST));
+        ast->loc = t.loc;
+        ast->subscript = (Subscript_AST *)arena_alloc(arena, sizeof(Subscript_AST));
+        ast->kind = AST_SUBSCRIPT;
+
+        ast->subscript->identifier_key = parser_advance(p).lexeme; // Eat IDENT
+        parser_advance(p); // Skip [
+
+        Token next = parser_peek(p);
+        if (next.type != TK_INT &&
+            next.type != TK_IDENT) {
+            error_pretty(next.loc, (*p->lexer), "Expected a positive integer literal or variable but got `%s`", token_type_as_str(next.type));
+            return NULL;
+        }
+        AST *index_ast = parse_primary(arena, p);
+        if (index_ast == NULL) return NULL;
+        ASSERT(index_ast->prim_expr->value.kind == LIT_INT ||
+               index_ast->prim_expr->kind == PRIMARY_IDENT,
+               "parse_primary() error; should be either integer primary or ident primary!");
+        ast->subscript->index_expr = index_ast->prim_expr;
+
+        if (!parser_match(p, TK_RIGHT_SQUARE_BRACE)) {
+            error_pretty(parser_peek(p).loc, (*p->lexer), "Expected ] but got `%s`", token_type_as_str(parser_peek(p).type));
+        }
+        return ast;
+    }
+
     return parse_funcall(arena, p);
 }
 
@@ -923,7 +978,7 @@ AST *parse_unary(Arena *arena, Parser *p) {
         return ast;
     }
 
-    return parse_array_subscript(arena, p);
+    return parse_subscript(arena, p);
 }
 
 AST *parse_factor(Arena *arena, Parser *p) {

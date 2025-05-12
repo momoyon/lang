@@ -1,0 +1,7 @@
+parse_unary.momo:1:0 [UNARY] ' ! (1)'
+parse_unary.momo:2:0 [UNARY] ' ! (true)'
+parse_unary.momo:3:0 [UNARY] ' ! ( ! (true))'
+parse_unary.momo:4:0 [UNARY] ' - (1)'
+parse_unary.momo:5:0 [UNARY] ' - ('number': ???)'
+parse_unary.momo:6:0 [UNARY] ' ! ('bar': ???)'
+parse_unary.momo:7:0 [UNARY] ' - ('baz': ???)'

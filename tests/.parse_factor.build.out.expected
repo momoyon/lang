@@ -1,0 +1,4 @@
+parse_factor.momo:1:0 [BINARY] '(8 * 1024)'
+parse_factor.momo:2:0 [BINARY] '(40.000000 / 1.555500)'
+parse_factor.momo:3:0 [BINARY] '('foo': ??? * 2)'
+parse_factor.momo:4:0 [BINARY] '('bar': ??? / 'baz': ???)'
