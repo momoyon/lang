@@ -33,11 +33,8 @@ static bool DEBUG_PRINT = false;
 // factor          -> unary ( ( "/" | "*" ) unary )* ;
 // unary           -> ( "!" | "-" ) unary
 //                | primary ;
-// // TODO:                 Ig there could be a funcall here aswell?
-//                                V
-// array subscript -> IDENT "[" ( IDENT | NUMBER ) "]"
-// funcalls        -> IDENT "(" ( ast "," )* ")"
-//                   | IDENT "(" IDENT ")"
+// subscript       -> IDENT "[" ast "]"
+// funcalls        -> IDENT "(" ( ast "," )* ")" | IDENT "(" ast ")"
 // suffix          -> IDENT ( "++" | "--" )
 // primary         -> NUMBER | STRING | IDENT | "true" | "false" | "null"
 //                | "(" ast ")" ;
@@ -332,7 +329,7 @@ struct Funcall_AST {
 
 struct Subscript_AST {
     String_view identifier_key;
-    Primary_expr *index_expr;
+    AST *index_ast;
 };
 
 struct Binary_expr {
@@ -550,7 +547,7 @@ void print_ast_as_value(FILE *f, AST e) {
         case AST_SUBSCRIPT: {
             fprintf(f, SV_FMT, SV_ARG(e.subscript->identifier_key));
             fprintf(f, "[");
-            print_primary_expr(f, e.subscript->index_expr);
+            print_ast_as_value(f, *e.subscript->index_ast);
             // if (e.subscript->index_expr->kind == PRIMARY_VALUE) {
             //     print_literal(f, e.subscript->index_expr->value);
             // } else if (e.subscript->index_expr->kind == PRIMARY_IDENT) {
@@ -942,18 +939,9 @@ AST *parse_subscript(Arena *arena, Parser *p) {
         ast->subscript->identifier_key = parser_advance(p).lexeme; // Eat IDENT
         parser_advance(p); // Skip [
 
-        Token next = parser_peek(p);
-        if (next.type != TK_INT &&
-            next.type != TK_IDENT) {
-            error_pretty(next.loc, (*p->lexer), "Expected a positive integer literal or variable but got `%s`", token_type_as_str(next.type));
-            return NULL;
-        }
-        AST *index_ast = parse_primary(arena, p);
+        AST *index_ast = parse(arena, p);
         if (index_ast == NULL) return NULL;
-        ASSERT(index_ast->prim_expr->value.kind == LIT_INT ||
-               index_ast->prim_expr->kind == PRIMARY_IDENT,
-               "parse_primary() error; should be either integer primary or ident primary!");
-        ast->subscript->index_expr = index_ast->prim_expr;
+        ast->subscript->index_ast = index_ast;
 
         if (!parser_match(p, TK_RIGHT_SQUARE_BRACE)) {
             error_pretty(parser_peek(p).loc, (*p->lexer), "Expected ] but got `%s`", token_type_as_str(parser_peek(p).type));

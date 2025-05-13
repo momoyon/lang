@@ -1,0 +1,6 @@
+parse_subscript.momo:1:0 [SUBSCRIPT] 'foo[69]'
+parse_subscript.momo:2:0 [SUBSCRIPT] 'foo['bar': ???]'
+parse_subscript.momo:3:0 [SUBSCRIPT] 'a[b(0)]'
+parse_subscript.momo:4:0 [SUBSCRIPT] 'c[(1 - 1)]'
+parse_subscript.momo:5:0 [SUBSCRIPT] 'd[('b': ??? == 'c': ???)]'
+parse_subscript.momo:6:0 [SUBSCRIPT] 'baz[10]'
