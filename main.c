@@ -33,6 +33,7 @@ static bool DEBUG_PRINT = false;
 // factor          -> unary ( ( "/" | "*" ) unary )* ;
 // unary           -> ( "!" | "-" ) unary
 //                | primary ;
+// access          -> IDENT "." ( access | IDENT )
 // subscript       -> IDENT "[" ast "]"
 // funcalls        -> IDENT "(" ( ast "," )* ")" | IDENT "(" ast ")"
 // suffix          -> IDENT ( "++" | "--" )
@@ -101,7 +102,7 @@ static bool DEBUG_PRINT = false;
  * --------------------+-------------------------------------+-----------+-----
  * Struct/Union access | .                                   | Left      |      NOTE: We use . to access through pointers as well
  * --------------------+-------------------------------------+-----------+-----
- * Array Subscripting  | []                                  | Left      |
+ * Array Subscripting  | []                                  | Left      | X
  * --------------------+-------------------------------------+-----------+-----
  * Function Call       | ()                                  | Left      | X
  * --------------------+-------------------------------------+-----------+-----
@@ -281,6 +282,7 @@ typedef enum   Literal_kind Literal_kind;
 typedef struct Binary_expr Binary_expr;
 typedef struct Funcall_AST Funcall_AST;
 typedef struct Subscript_AST Subscript_AST;
+typedef struct Access_AST Access_AST;
 typedef struct Unary_expr Unary_expr;
 typedef struct Primary_expr Primary_expr;
 typedef struct AST AST;
@@ -332,6 +334,21 @@ struct Subscript_AST {
     AST *index_ast;
 };
 
+typedef enum {
+    ACC_RHS_ACCESS,
+    ACC_RHS_IDENT,
+    ACC_RHS_COUNT,
+} Access_AST_rhs_kind;
+
+struct Access_AST {
+    Token lhs; // Eg: foo.bar // here `foo` is lhs
+    union {
+        Access_AST *access;
+        String_view ident_key;
+    } rhs_as;
+    Access_AST_rhs_kind rhs_kind;
+};
+
 struct Binary_expr {
     Token operator;
     AST *lhs;
@@ -359,6 +376,7 @@ typedef enum {
     AST_PRIMARY,
     AST_FUNCALL,
     AST_SUBSCRIPT,
+    AST_ACCESS,
     AST_COUNT,
 } AST_kind;
 
@@ -371,6 +389,7 @@ struct AST {
     Unary_expr *unary_expr;
     Funcall_AST *funcall;
     Subscript_AST *subscript;
+    Access_AST *access;
     Location loc;
 };
 
@@ -479,6 +498,7 @@ const char *expr_kind_as_str(AST_kind k) {
         case AST_PRIMARY: return "PRIMARY";
         case AST_FUNCALL: return "FUNCALL";
         case AST_SUBSCRIPT: return "SUBSCRIPT";
+        case AST_ACCESS: return "ACCESS";
         case AST_COUNT:
         default: ASSERT(false, "UNREACHABLE!");
     }
@@ -557,6 +577,22 @@ void print_ast_as_value(FILE *f, AST e) {
             // }
             fprintf(f, "]");
         } break;
+        case AST_ACCESS: {
+            fprintf(f, SV_FMT, SV_ARG(e.access->lhs.lexeme));
+            fprintf(f, ".");
+            switch (e.access->rhs_kind) {
+                case ACC_RHS_ACCESS: {
+
+                } break;
+                case ACC_RHS_IDENT: {
+                    fprintf(f, SV_FMT, SV_ARG(e.access->rhs_as.ident_key));
+                } break;
+                case ACC_RHS_COUNT:
+                default:
+                    ASSERT(false, "UNREACHABLE!");
+            }
+        } break;
+
         case AST_COUNT:
         default: ASSERT(false, "UNREACHABLE!");
     }
@@ -758,6 +794,7 @@ AST *parse_primary(Arena *arena, Parser *p);
 AST *parse_suffix(Arena *arena, Parser *p);
 AST *parse_funcall(Arena *arena, Parser *p);
 AST *parse_subscript(Arena *arena, Parser *p);
+AST *parse_access(Arena *arena, Parser *p);
 AST *parse_unary(Arena *arena, Parser *p);
 AST *parse_factor(Arena *arena, Parser *p);
 AST *parse_comparision(Arena *arena, Parser *p);
@@ -952,6 +989,35 @@ AST *parse_subscript(Arena *arena, Parser *p) {
     return parse_funcall(arena, p);
 }
 
+AST *parse_access(Arena *arena, Parser *p) {
+    Token t = parser_peek(p);
+
+    if (t.type == TK_IDENT && parser_peek_by(p, 1).type == TK_DOT) {
+
+        AST *ast = (AST *)arena_alloc(arena, sizeof(AST));
+        ast->loc = t.loc;
+        ast->access = (Access_AST *)arena_alloc(arena, sizeof(Access_AST));
+        ast->kind = AST_ACCESS;
+        ast->access->lhs = parser_advance(p); // Eat IDENT
+
+        parser_advance(p); // Skip .
+
+        Token next = parser_peek(p);
+
+        if (next.type == TK_IDENT) {
+            ast->access->rhs_kind = ACC_RHS_IDENT;
+            ast->access->rhs_as.ident_key = next.lexeme;
+            parser_advance(p); // Eat IDENT
+            return ast;
+        } else {
+        }
+
+        ASSERT(false, "parse_access() is unimplemented!");
+    }
+
+    return parse_subscript(arena, p);
+}
+
 AST *parse_unary(Arena *arena, Parser *p) {
     Token t = parser_peek(p);
 
@@ -966,7 +1032,7 @@ AST *parse_unary(Arena *arena, Parser *p) {
         return ast;
     }
 
-    return parse_subscript(arena, p);
+    return parse_access(arena, p);
 }
 
 AST *parse_factor(Arena *arena, Parser *p) {
@@ -1666,6 +1732,9 @@ bool next_token(Lexer *l, Token *t_out) {
         } break;
         case ',': {
             LEX_N_CHAR_TOKEN(TK_COMMA, 1);
+        } break;
+        case '.': {
+            LEX_N_CHAR_TOKEN(TK_DOT, 1);
         } break;
         // NOTE: Sanity check
         case ' ': {
