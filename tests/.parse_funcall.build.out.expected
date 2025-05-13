@@ -1,0 +1,4 @@
+parse_funcall.momo:1:0 [FUNCALL] 'funcall()'
+parse_funcall.momo:3:0 [FUNCALL] 'funcall(1)'
+parse_funcall.momo:5:0 [FUNCALL] 'foo('bar': ???, 'baz': ???, 1, 2, 3)'
+parse_funcall.momo:8:0 [FUNCALL] 'a(b(c('bar': ???, 'baz': ???)))'
