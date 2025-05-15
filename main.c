@@ -31,17 +31,15 @@ static bool DEBUG_PRINT = false;
 // comparison      -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 // term            -> factor ( ( "-" | "+" ) factor )* ;
 // factor          -> unary ( ( "/" | "*" ) unary )* ;
-// unary_not       -> ( "!" | "~" ) unary
-//                | primary ;
-// unary_term      -> ( "-" | "+" ) unary
-// prefix          -> ( "++" | "--" ) IDENT
+// unary_not       -> ( "!" | "~" ) unary | primary ;
+// unary_term      -> ( "-" | "+" ) ( NUMBER | IDENT ) ;
+// prefix          -> ( "++" | "--" ) IDENT ;
 // comp.lit        -> Skipped...
-// access          -> IDENT "." ( access | IDENT )
-// subscript       -> IDENT "[" ast "]"
-// funcalls        -> IDENT "(" ( ast "," )* ")" | IDENT "(" ast ")"
-// suffix          -> IDENT ( "++" | "--" )
-// primary         -> NUMBER | STRING | IDENT | "true" | "false" | "null"
-//                | "(" ast ")" ;
+// access          -> IDENT "." ( access | IDENT ) ;
+// subscript       -> IDENT "[" ast "]" ;
+// funcalls        -> IDENT "(" ( ast "," )* ")" | IDENT "(" ast ")" ;
+// suffix          -> IDENT ( "++" | "--" ) ;
+// primary         -> NUMBER | STRING | IDENT | "true" | "false" | "null" | "(" ast ")" ;
 
 /* NOTE: We are referencing this table: https://en.cppreference.com/w/c/language/operator_precedence
  * PRECEDENCE TABLE
@@ -97,7 +95,7 @@ static bool DEBUG_PRINT = false;
  * --------------------+-------------------------------------+-----------+-----
  * L/B NOT             | ! ~                                 | Right     |
  * --------------------+-------------------------------------+-----------+-----
- * Unary Plus/Minus    | + -                                 | Right     |
+ * Unary Plus/Minus    | + -                                 | Right     | X
  * --------------------+-------------------------------------+-----------+-----
  * Prefix Inc/Dec      | ++ --                               | Right     | X
  * --------------------+-------------------------------------+-----------+-----
@@ -1063,8 +1061,21 @@ AST *parse_unary_term(Arena *arena, Parser *p) {
         ast->unary_term = (Unary_term_AST *)arena_alloc(arena, sizeof(Unary_term_AST));
         ast->kind = AST_UNARY_TERM;
         ast->unary_term->operator = parser_advance(p);
-        ast->unary_term->operand = parse_unary_term(arena, p);
-        return ast;
+
+        Token next = parser_peek(p);
+
+        if (next.type == TK_INT ||
+            next.type == TK_FLOAT ||
+            next.type == TK_IDENT ||
+            next.type == TK_PLUS ||   // NOTE: Since it could be like Eg: +-ident
+            next.type == TK_MINUS     // Ditto ^
+            ) {
+            ast->unary_term->operand  = parse_unary_term(arena, p);
+            return ast;
+        }
+
+        error_pretty(next.loc, (*p->lexer), "Expected a number or identifier after `"SV_FMT"` but got `%s`", SV_ARG(parser_previous(p).lexeme), token_type_as_str(next.type));
+        return NULL;
     }
 
     return parse_prefix(arena, p);
