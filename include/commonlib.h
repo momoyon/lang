@@ -150,7 +150,7 @@ typedef struct c_Arena c_Arena;
 
 // NOTE: To use c_da_append() the Dynamic-Array struct should be defined using
 // DEFINE_DYNAMIC_ARRAY or have the same members as below!
-// NOTE!!!: We actually don't want this since this makes the user want to 
+// NOTE!!!: We actually don't want this since this makes the user want to
 // use this macro to define dynamic arrays. But the user might want extra fields
 // in the struct; So we recommend defining da structs manually like:
 // ```C
@@ -362,6 +362,7 @@ const char *c_read_file(const char* filename, int *file_size) {
     char* result = NULL;
 
     if (f == NULL){
+        // TODO: Replace every strerror with strerror_s
         c_log_error("'%s': %s", filename, strerror(errno));
         defer(NULL);
     }
