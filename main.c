@@ -31,7 +31,8 @@ static bool DEBUG_PRINT = false;
 // comparison      -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 // term            -> factor ( ( "-" | "+" ) factor )* ;
 // factor          -> unary ( ( "/" | "*" ) unary )* ;
-// unary_not       -> ( "!" | "~" ) unary | primary ;
+// unary_not       -> ( "!" | "~" ) ( unary | primary ) ;
+// // TODO: Actually... maybe reverse ( NUMBER | IDENT )  to ( unary | primary ) and check for `+ "string`, etc in type-checking?
 // unary_term      -> ( "-" | "+" ) ( NUMBER | IDENT ) ;
 // prefix          -> ( "++" | "--" ) IDENT ;
 // comp.lit        -> Skipped...
