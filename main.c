@@ -98,7 +98,7 @@ static bool DEBUG_PRINT = false;
  * --------------------+-------------------------------------+-----------+-----
  * Unary Plus/Minus    | + -                                 | Right     |
  * --------------------+-------------------------------------+-----------+-----
- * Prefix Inc/Dec      | ++ --                               | Right     |
+ * Prefix Inc/Dec      | ++ --                               | Right     | X
  * --------------------+-------------------------------------+-----------+-----
  * Compound Lit        | (type){list}                        | Left      |     // TODO: We skipped this
  * --------------------+-------------------------------------+-----------+-----
@@ -287,6 +287,7 @@ typedef struct Subscript_AST Subscript_AST;
 typedef struct Access_AST Access_AST;
 typedef struct Unary_expr Unary_expr;
 typedef struct Suffix_AST Suffix_AST;
+typedef struct Prefix_AST Prefix_AST;
 typedef struct Primary_expr Primary_expr;
 typedef struct AST AST;
 typedef enum   Primary_expr_kind Primary_expr_kind;
@@ -363,6 +364,11 @@ struct Suffix_AST {
     AST *operator;
 };
 
+struct Prefix_AST {
+    Token ident;
+    AST *operator;
+};
+
 enum Primary_expr_kind {
     PRIMARY_VALUE,
     PRIMARY_IDENT,
@@ -384,6 +390,7 @@ typedef enum {
     AST_FUNCALL,
     AST_SUBSCRIPT,
     AST_ACCESS,
+    AST_PREFIX,
     AST_UNARY,
     AST_BINARY,
     AST_COUNT,
@@ -398,6 +405,7 @@ struct AST {
     Funcall_AST   *funcall;
     Subscript_AST *subscript;
     Access_AST    *access;
+    Prefix_AST    *prefix;
     Unary_expr    *unary_expr;
     Binary_expr   *bin_expr;
     Location loc;
@@ -508,6 +516,7 @@ const char *expr_kind_as_str(AST_kind k) {
         case AST_FUNCALL: return "FUNCALL";
         case AST_SUBSCRIPT: return "SUBSCRIPT";
         case AST_ACCESS: return "ACCESS";
+        case AST_PREFIX: return "PREFIX";
         case AST_UNARY: return "UNARY";
         case AST_BINARY: return "BINARY";
         case AST_COUNT:
@@ -583,13 +592,6 @@ void print_ast_as_value(FILE *f, AST e) {
             fprintf(f, SV_FMT, SV_ARG(e.subscript->identifier_key));
             fprintf(f, "[");
             print_ast_as_value(f, *e.subscript->index_ast);
-            // if (e.subscript->index_expr->kind == PRIMARY_VALUE) {
-            //     print_literal(f, e.subscript->index_expr->value);
-            // } else if (e.subscript->index_expr->kind == PRIMARY_IDENT) {
-            //     print_loc(f, e.subscript->index_expr->value);
-            // } else {
-            //     ASSERT(false, "This shouldnt happen");
-            // }
             fprintf(f, "]");
         } break;
         case AST_ACCESS: {
@@ -606,6 +608,10 @@ void print_ast_as_value(FILE *f, AST e) {
                 default:
                     ASSERT(false, "UNREACHABLE!");
             }
+        } break;
+        case AST_PREFIX: {
+            print_ast_as_value(f, *e.prefix->operator);
+            fprintf(f, SV_FMT, SV_ARG(e.prefix->ident.lexeme));
         } break;
 
         case AST_COUNT:
@@ -1047,13 +1053,11 @@ AST *parse_prefix(Arena *arena, Parser *p) {
 
         AST *ast = (AST *)arena_alloc(arena, sizeof(AST));
         ast->loc = t.loc;
-        ast->unary_expr = (Unary_expr *)arena_alloc(arena, sizeof(Unary_expr));
-        ast->kind = AST_UNARY;
-        Unary_expr *unary_expr = ast->unary_expr;
-        unary_expr->operator = parser_advance(p);
-        unary_expr->operand = parse_primary(arena, p);
-        ASSERT(unary_expr->operand, "We should be able to parse identifiers using parse_primary()!");
-        unary_expr->suffix = false;
+        ast->prefix = (Prefix_AST *)arena_alloc(arena, sizeof(Prefix_AST));
+        ast->kind = AST_PREFIX;
+        ast->prefix->ident = parser_advance(p);
+        ast->prefix->operator = parse_primary(arena, p);
+        ASSERT(ast->prefix->operator, "We should be able to parse identifiers using parse_primary()!");
         return ast;
     }
 

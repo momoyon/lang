@@ -1,4 +1,4 @@
-parse_suffix.momo:1:0 [UNARY] '('foo': ???) ++ '
-parse_suffix.momo:2:0 [UNARY] '('bar': ???) -- '
-parse_suffix.momo:3:0 [UNARY] '('a': ???) ++ '
-parse_suffix.momo:3:5 [UNARY] '('b': ???) -- '
+parse_suffix.momo:1:0 [SUFFIX] '++'foo': ???'
+parse_suffix.momo:2:0 [SUFFIX] '--'bar': ???'
+parse_suffix.momo:3:0 [SUFFIX] '++'a': ???'
+parse_suffix.momo:3:5 [SUFFIX] '--'b': ???'
