@@ -3,3 +3,7 @@ lang.sh
 tags
 lang
 *.exe
+vs
+.vs
+test.c
+shell.nix
