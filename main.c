@@ -343,7 +343,7 @@ typedef enum {
 struct Access_AST {
     Token lhs; // Eg: foo.bar // here `foo` is lhs
     union {
-        Access_AST *access;
+        AST *access;
         String_view ident_key;
     } rhs_as;
     Access_AST_rhs_kind rhs_kind;
@@ -422,11 +422,11 @@ static Identifier_KV *identifier_map = {0};
 
 ///
 
-void usage(const char *program) {
+static void usage(const char *program) {
     info("Usage: %s [subcommand] [flag(s)] <file>", program);
 }
 
-void help(const char *program) {
+static void help(const char *program) {
     usage(program);
 
     info("");
@@ -582,7 +582,7 @@ void print_ast_as_value(FILE *f, AST e) {
             fprintf(f, ".");
             switch (e.access->rhs_kind) {
                 case ACC_RHS_ACCESS: {
-
+                    print_ast_as_value(f, *e.access->rhs_as.access);
                 } break;
                 case ACC_RHS_IDENT: {
                     fprintf(f, SV_FMT, SV_ARG(e.access->rhs_as.ident_key));
@@ -803,8 +803,6 @@ AST *parse_equality(Arena *arena, Parser *p);
 AST *parse(Arena *arena, Parser *p);
 
 AST *parse_primary(Arena *arena, Parser *p) {
-    // NOTE: We can advance here because primary is the last rule
-    // TODO: Somehow parser_advance() here breaks it.
     Token t = parser_peek(p);
 
     if (t.type != TK_LEFT_PAREN) {
@@ -993,26 +991,37 @@ AST *parse_access(Arena *arena, Parser *p) {
     Token t = parser_peek(p);
 
     if (t.type == TK_IDENT && parser_peek_by(p, 1).type == TK_DOT) {
-
         AST *ast = (AST *)arena_alloc(arena, sizeof(AST));
-        ast->loc = t.loc;
-        ast->access = (Access_AST *)arena_alloc(arena, sizeof(Access_AST));
-        ast->kind = AST_ACCESS;
-        ast->access->lhs = parser_advance(p); // Eat IDENT
+        AST *current = ast; // Current access ast, we have to track this since access could be nested like `foo.bar.baz`
 
-        parser_advance(p); // Skip .
+        while (true) {
+            current->loc = parser_peek(p).loc;
+            current->access = (Access_AST *)arena_alloc(arena, sizeof(Access_AST));
+            current->kind = AST_ACCESS;
+            current->access->lhs = parser_advance(p); // Eat IDENT
 
-        Token next = parser_peek(p);
+            ASSERT(parser_match(p, TK_DOT), "We fucked up logic here"); // Skip .
 
-        if (next.type == TK_IDENT) {
-            ast->access->rhs_kind = ACC_RHS_IDENT;
-            ast->access->rhs_as.ident_key = next.lexeme;
-            parser_advance(p); // Eat IDENT
-            return ast;
-        } else {
+            Token next = parser_peek(p);
+            if (next.type == TK_IDENT) {
+                Token next_next = parser_peek_by(p, 1);
+                if (next_next.type == TK_DOT) {
+                    current->access->rhs_kind = ACC_RHS_ACCESS;
+                    current->access->rhs_as.access = (AST *)arena_alloc(arena, sizeof(AST));
+                    current = current->access->rhs_as.access;
+                    continue;
+                } else {
+                    current->access->rhs_kind = ACC_RHS_IDENT;
+                    current->access->rhs_as.ident_key = next.lexeme;
+                    parser_advance(p); // Eat IDENT
+                    return ast;
+                }
+            }
+            error_pretty(next.loc, (*p->lexer), "Expected identifier after . but got `%s`", token_type_as_str(next.type));
+            return NULL;
         }
 
-        ASSERT(false, "parse_access() is unimplemented!");
+        ASSERT(false, "UNREACHABLE!");
     }
 
     return parse_subscript(arena, p);

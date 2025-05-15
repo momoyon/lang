@@ -1,0 +1,2 @@
+parse_access.momo:1:0 [ACCESS] 'foo.bar'
+parse_access.momo:2:0 [ACCESS] 'foo.bar.baz'
