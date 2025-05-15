@@ -33,6 +33,8 @@ static bool DEBUG_PRINT = false;
 // factor          -> unary ( ( "/" | "*" ) unary )* ;
 // unary           -> ( "!" | "-" ) unary
 //                | primary ;
+// prefix          -> ( "++" | "--" ) IDENT
+// comp.lit        -> Skipped...
 // access          -> IDENT "." ( access | IDENT )
 // subscript       -> IDENT "[" ast "]"
 // funcalls        -> IDENT "(" ( ast "," )* ")" | IDENT "(" ast ")"
@@ -98,9 +100,9 @@ static bool DEBUG_PRINT = false;
  * --------------------+-------------------------------------+-----------+-----
  * Prefix Inc/Dec      | ++ --                               | Right     |
  * --------------------+-------------------------------------+-----------+-----
- * Compound Lit        | (type){list}                        | Left      |
+ * Compound Lit        | (type){list}                        | Left      |     // TODO: We skipped this
  * --------------------+-------------------------------------+-----------+-----
- * Struct/Union access | .                                   | Left      |      NOTE: We use . to access through pointers as well
+ * Struct/Union access | .                                   | Left      | X    NOTE: We use . to access through pointers as well
  * --------------------+-------------------------------------+-----------+-----
  * Array Subscripting  | []                                  | Left      | X
  * --------------------+-------------------------------------+-----------+-----
@@ -795,6 +797,7 @@ AST *parse_suffix(Arena *arena, Parser *p);
 AST *parse_funcall(Arena *arena, Parser *p);
 AST *parse_subscript(Arena *arena, Parser *p);
 AST *parse_access(Arena *arena, Parser *p);
+AST *parse_prefix(Arena *arena, Parser *p);
 AST *parse_unary(Arena *arena, Parser *p);
 AST *parse_factor(Arena *arena, Parser *p);
 AST *parse_comparision(Arena *arena, Parser *p);
@@ -898,10 +901,8 @@ AST *parse_suffix(Arena *arena, Parser *p) {
     if (t.type == TK_IDENT &&
             (parser_peek_by(p, 1).type == TK_PLUS_PLUS ||
              parser_peek_by(p, 1).type == TK_MINUS_MINUS)) {
-        //
         AST *operand = parse_primary(arena, p);
         ASSERT(operand, "We should be able to parse identifiers using parse_primary()!");
-        // printf("INFO: CURRENT TOKEN: "); print_token(stdout, parser_peek(p));
 
         AST *ast = (AST *)arena_alloc(arena, sizeof(AST));
         ast->loc = t.loc;
@@ -1027,6 +1028,27 @@ AST *parse_access(Arena *arena, Parser *p) {
     return parse_subscript(arena, p);
 }
 
+AST *parse_prefix(Arena *arena, Parser *p) {
+    Token t = parser_peek(p);
+
+    if (t.type == TK_PLUS_PLUS ||
+            t.type == TK_MINUS_MINUS) {
+
+        AST *ast = (AST *)arena_alloc(arena, sizeof(AST));
+        ast->loc = t.loc;
+        ast->unary_expr = (Unary_expr *)arena_alloc(arena, sizeof(Unary_expr));
+        ast->kind = AST_UNARY;
+        Unary_expr *unary_expr = ast->unary_expr;
+        unary_expr->operator = parser_advance(p);
+        unary_expr->operand = parse_primary(arena, p);
+        ASSERT(unary_expr->operand, "We should be able to parse identifiers using parse_primary()!");
+        unary_expr->suffix = false;
+        return ast;
+    }
+
+    return parse_access(arena, p);
+}
+
 AST *parse_unary(Arena *arena, Parser *p) {
     Token t = parser_peek(p);
 
@@ -1041,7 +1063,7 @@ AST *parse_unary(Arena *arena, Parser *p) {
         return ast;
     }
 
-    return parse_access(arena, p);
+    return parse_prefix(arena, p);
 }
 
 AST *parse_factor(Arena *arena, Parser *p) {
