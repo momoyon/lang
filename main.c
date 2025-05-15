@@ -31,8 +31,9 @@ static bool DEBUG_PRINT = false;
 // comparison      -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 // term            -> factor ( ( "-" | "+" ) factor )* ;
 // factor          -> unary ( ( "/" | "*" ) unary )* ;
-// unary           -> ( "!" | "-" ) unary
+// unary_not       -> ( "!" | "~" ) unary
 //                | primary ;
+// unary_term      -> ( "-" | "+" ) unary
 // prefix          -> ( "++" | "--" ) IDENT
 // comp.lit        -> Skipped...
 // access          -> IDENT "." ( access | IDENT )
@@ -285,7 +286,7 @@ typedef struct Binary_expr Binary_expr;
 typedef struct Funcall_AST Funcall_AST;
 typedef struct Subscript_AST Subscript_AST;
 typedef struct Access_AST Access_AST;
-typedef struct Unary_expr Unary_expr;
+typedef struct Unary_term_AST Unary_term_AST;
 typedef struct Suffix_AST Suffix_AST;
 typedef struct Prefix_AST Prefix_AST;
 typedef struct Primary_expr Primary_expr;
@@ -316,10 +317,9 @@ struct Literal {
 
 void print_literal(FILE *f, Literal value);
 
-struct Unary_expr {
+struct Unary_term_AST {
     Token operator;
     AST *operand;
-    bool suffix;
 };
 
 typedef struct {
@@ -391,7 +391,7 @@ typedef enum {
     AST_SUBSCRIPT,
     AST_ACCESS,
     AST_PREFIX,
-    AST_UNARY,
+    AST_UNARY_TERM,
     AST_BINARY,
     AST_COUNT,
 } AST_kind;
@@ -400,14 +400,14 @@ const char *ast_kind_as_str(AST_kind k);
 
 struct AST {
     AST_kind kind;
-    Primary_expr  *prim_expr;
-    Suffix_AST    *suffix;
-    Funcall_AST   *funcall;
-    Subscript_AST *subscript;
-    Access_AST    *access;
-    Prefix_AST    *prefix;
-    Unary_expr    *unary_expr;
-    Binary_expr   *bin_expr;
+    Primary_expr    *prim_expr;
+    Suffix_AST      *suffix;
+    Funcall_AST     *funcall;
+    Subscript_AST   *subscript;
+    Access_AST      *access;
+    Prefix_AST      *prefix;
+    Unary_term_AST  *unary_term;
+    Binary_expr     *bin_expr;
     Location loc;
 };
 
@@ -517,7 +517,7 @@ const char *expr_kind_as_str(AST_kind k) {
         case AST_SUBSCRIPT: return "SUBSCRIPT";
         case AST_ACCESS: return "ACCESS";
         case AST_PREFIX: return "PREFIX";
-        case AST_UNARY: return "UNARY";
+        case AST_UNARY_TERM: return "UNARY_TERM";
         case AST_BINARY: return "BINARY";
         case AST_COUNT:
         default: ASSERT(false, "UNREACHABLE!");
@@ -558,19 +558,9 @@ void print_ast_as_value(FILE *f, AST e) {
             fprintf(f, ")");
 
         } break;
-        case AST_UNARY: {
-            if (e.unary_expr->suffix) {
-                fprintf(f, "(");
-                print_ast_as_value(f, *e.unary_expr->operand);
-                fprintf(f, ")");
-                fprintf(f, " %s ", token_type_as_str(e.unary_expr->operator.type));
-            } else {
-                fprintf(f, " %s ", token_type_as_str(e.unary_expr->operator.type));
-                fprintf(f, "(");
-                print_ast_as_value(f, *e.unary_expr->operand);
-                fprintf(f, ")");
-            }
-
+        case AST_UNARY_TERM: {
+             fprintf(f, " %s ", token_type_as_str(e.unary_term->operator.type));
+             print_ast_as_value(f, *e.unary_term->operand);
         } break;
         case AST_PRIMARY: {
             print_primary_expr(f, e.prim_expr);
@@ -817,7 +807,7 @@ AST *parse_funcall(Arena *arena, Parser *p);
 AST *parse_subscript(Arena *arena, Parser *p);
 AST *parse_access(Arena *arena, Parser *p);
 AST *parse_prefix(Arena *arena, Parser *p);
-AST *parse_unary(Arena *arena, Parser *p);
+AST *parse_unary_term(Arena *arena, Parser *p);
 AST *parse_factor(Arena *arena, Parser *p);
 AST *parse_comparision(Arena *arena, Parser *p);
 AST *parse_term(Arena *arena, Parser *p);
@@ -1064,17 +1054,16 @@ AST *parse_prefix(Arena *arena, Parser *p) {
     return parse_access(arena, p);
 }
 
-AST *parse_unary(Arena *arena, Parser *p) {
+AST *parse_unary_term(Arena *arena, Parser *p) {
     Token t = parser_peek(p);
 
-    if (t.type == TK_NOT || t.type == TK_MINUS) {
+    if (t.type == TK_MINUS || t.type == TK_PLUS) {
         AST *ast = (AST *)arena_alloc(arena, sizeof(AST));
         ast->loc = t.loc;
-        ast->unary_expr = (Unary_expr *)arena_alloc(arena, sizeof(Unary_expr));
-        ast->kind = AST_UNARY;
-        Unary_expr *unary_expr = ast->unary_expr;
-        unary_expr->operator = parser_advance(p);
-        unary_expr->operand = parse_unary(arena, p);
+        ast->unary_term = (Unary_term_AST *)arena_alloc(arena, sizeof(Unary_term_AST));
+        ast->kind = AST_UNARY_TERM;
+        ast->unary_term->operator = parser_advance(p);
+        ast->unary_term->operand = parse_unary_term(arena, p);
         return ast;
     }
 
@@ -1082,12 +1071,12 @@ AST *parse_unary(Arena *arena, Parser *p) {
 }
 
 AST *parse_factor(Arena *arena, Parser *p) {
-    AST *ast = parse_unary(arena, p);
+    AST *ast = parse_unary_term(arena, p);
     if (ast == NULL) return NULL;
 
     while (parser_match(p, TK_DIVIDE) || parser_match(p, TK_MULTIPLY)) {
         Token op = parser_previous(p);
-        AST *rhs = parse_unary(arena, p);
+        AST *rhs = parse_unary_term(arena, p);
         if (rhs == NULL) return rhs;
 
         AST *new_ast = (AST *)arena_alloc(arena, sizeof(AST));

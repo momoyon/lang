@@ -1,0 +1,5 @@
+parse_unary_term.momo:1:0 [UNARY_TERM] ' + 1'
+parse_unary_term.momo:2:0 [UNARY_TERM] ' - 8'
+parse_unary_term.momo:3:0 [UNARY_TERM] ' - 'number': ???'
+parse_unary_term.momo:4:0 [UNARY_TERM] ' + 'bar': ???'
+parse_unary_term.momo:5:0 [UNARY_TERM] ' -  + 'baz': ???'
