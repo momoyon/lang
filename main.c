@@ -130,6 +130,7 @@ void print_loc(FILE *f, Location loc);
 typedef enum {
     TK_IDENT,
     TK_KEYWORD,
+    TK_TYPE,
 
     TK_COMMENT,
     TK_MULTILINE_COMMENT,
@@ -631,6 +632,7 @@ const char *token_type_as_str(Token_type t) {
     switch (t) {
         case TK_IDENT: return "IDENT";
         case TK_KEYWORD: return "KEYWORD";
+        case TK_TYPE: return "TYPE";
         case TK_COMMENT: return "COMMENT";
         case TK_MULTILINE_COMMENT: return "MULTILINE_COMMENT";
         case TK_STRING: return "STRING";
@@ -691,7 +693,15 @@ const char *token_type_as_str(Token_type t) {
     }
 }
 
-const char *keywords[] = {
+typedef struct {
+    const char **items;
+    size_t count;
+    size_t capacity;
+} Types;
+
+static Types types = {0};
+
+const char *predefined_types[] = {
     "int",
     "int8",
     "int16",
@@ -707,9 +717,13 @@ const char *keywords[] = {
     "float",
     "float32",
     "float64",
+
     "char",
     "string",
     "bool",
+};
+
+const char *keywords[] = {
 
     "if",
     "else",
@@ -737,6 +751,13 @@ const char *keywords[] = {
 bool is_keyword(String_view ident) {
     for (size_t i = 0; i < ARRAY_LEN(keywords); ++i) {
         if (sv_equals(ident, SV(keywords[i]))) return true;
+    }
+    return false;
+}
+
+bool is_type(String_view ident) {
+    for (size_t i = 0; i < types.count; ++i) {
+        if (sv_equals(ident, SV(types.items[i]))) return true;
     }
     return false;
 }
@@ -1522,7 +1543,7 @@ bool next_token(Lexer *l, Token *t_out) {
 
         t_out->lexeme = ident_sv;
         t_out->loc    = ident_loc;
-        t_out->type   = (is_keyword(ident_sv) ? TK_KEYWORD : TK_IDENT);
+        t_out->type   = (is_keyword(ident_sv) ? TK_KEYWORD : is_type(ident_sv) ? TK_TYPE : TK_IDENT);
         if (sv_equals(ident_sv, SV("true")) || sv_equals(ident_sv, SV("false"))) {
             t_out->type = TK_BOOL;
         } else if (sv_equals(ident_sv, SV("null"))) {
@@ -1837,6 +1858,18 @@ typedef struct {
     size_t capacity;
 } Flags;
 
+void init(void) {
+
+    // Append predefined types to global types array
+    for (size_t i = 0; i < ARRAY_LEN(predefined_types); ++i) {
+        da_append(types, predefined_types[i]);
+    }
+
+    // for (size_t i = 0; i < types.count; ++i) {
+    //     log_debug("Type: %s", types.items[i]);
+    // }
+}
+
 int main(int argc, char **argv) {
     const char *program = shift_args(argv, argc);
 
@@ -1889,6 +1922,8 @@ int main(int argc, char **argv) {
         usage(program);
         return 1;
     }
+
+    init();
 
     Lexer l = make_lexer(filename);
 
