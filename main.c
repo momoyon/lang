@@ -32,8 +32,7 @@ static bool DEBUG_PRINT = false;
 // term            -> factor ( ( "-" | "+" ) factor )* ;
 // factor          -> unary ( ( "/" | "*" ) unary )* ;
 // unary_not       -> ( "!" | "~" ) ( unary | primary ) ;
-// // TODO: Actually... maybe reverse ( NUMBER | IDENT )  to ( unary | primary ) and check for `+ "string`, etc in type-checking?
-// unary_term      -> ( "-" | "+" ) ( NUMBER | IDENT ) ;
+// unary_term      -> ( "-" | "+" ) ( unary | primary ) ;
 // prefix          -> ( "++" | "--" ) IDENT ;
 // comp.lit        -> Skipped...
 // access          -> IDENT "." ( access | IDENT ) ;
@@ -1062,21 +1061,8 @@ AST *parse_unary_term(Arena *arena, Parser *p) {
         ast->unary_term = (Unary_term_AST *)arena_alloc(arena, sizeof(Unary_term_AST));
         ast->kind = AST_UNARY_TERM;
         ast->unary_term->operator = parser_advance(p);
-
-        Token next = parser_peek(p);
-
-        if (next.type == TK_INT ||
-            next.type == TK_FLOAT ||
-            next.type == TK_IDENT ||
-            next.type == TK_PLUS ||   // NOTE: Since it could be like Eg: +-ident
-            next.type == TK_MINUS     // Ditto ^
-            ) {
-            ast->unary_term->operand  = parse_unary_term(arena, p);
-            return ast;
-        }
-
-        error_pretty(next.loc, (*p->lexer), "Expected a number or identifier after `"SV_FMT"` but got `%s`", SV_ARG(parser_previous(p).lexeme), token_type_as_str(next.type));
-        return NULL;
+        ast->unary_term->operand  = parse_unary_term(arena, p);
+        return ast;
     }
 
     return parse_prefix(arena, p);
