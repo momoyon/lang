@@ -36,6 +36,8 @@ static bool DEBUG_PRINT = false;
 // unary_term      -> ( "-" | "+" ) ( unary | primary ) ;
 // prefix          -> ( "++" | "--" ) IDENT ;
 // comp.lit        -> Skipped...
+// // TODO: These all IDENT need to be ast, but if i do that, how can i parse them?
+// I will need to call parse() the first thing and check the next token... Which i cant really do right now that easily
 // access          -> IDENT "." ( access | IDENT ) ;
 // subscript       -> IDENT "[" ast "]" ;
 // funcalls        -> IDENT "(" ( ast "," )* ")" | IDENT "(" ast ")" ;
