@@ -31,6 +31,7 @@ static bool DEBUG_PRINT = false;
 // comparison      -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 // term            -> factor ( ( "-" | "+" ) factor )* ;
 // factor          -> unary ( ( "/" | "*" ) unary )* ;
+// cast            -> "(" TYPE ")" ast ;
 // unary_not       -> ( "!" | "~" ) ( unary | primary ) ;
 // unary_term      -> ( "-" | "+" ) ( unary | primary ) ;
 // prefix          -> ( "++" | "--" ) IDENT ;
@@ -93,7 +94,7 @@ static bool DEBUG_PRINT = false;
  * --------------------+-------------------------------------+-----------+-----
  * Cast                | (type)                              | Right     |
  * --------------------+-------------------------------------+-----------+-----
- * L/B NOT             | ! ~                                 | Right     |
+ * L/B NOT             | ! ~                                 | Right     | X
  * --------------------+-------------------------------------+-----------+-----
  * Unary Plus/Minus    | + -                                 | Right     | X
  * --------------------+-------------------------------------+-----------+-----
@@ -287,6 +288,7 @@ typedef struct Subscript_AST Subscript_AST;
 typedef struct Access_AST Access_AST;
 typedef struct Unary_term_AST Unary_term_AST;
 typedef struct Unary_not_AST Unary_not_AST;
+typedef struct Cast_AST Cast_AST;
 typedef struct Suffix_AST Suffix_AST;
 typedef struct Prefix_AST Prefix_AST;
 typedef struct Primary_expr Primary_expr;
@@ -325,6 +327,11 @@ struct Unary_term_AST {
 struct Unary_not_AST {
     Token operator;
     AST *operand;
+};
+
+struct Cast_AST {
+    Token type; // Type we are casting to
+    AST *ast;   // Ast we are casting
 };
 
 typedef struct {
@@ -398,6 +405,7 @@ typedef enum {
     AST_PREFIX,
     AST_UNARY_TERM,
     AST_UNARY_NOT,
+    AST_CAST,
     AST_BINARY,
     AST_COUNT,
 } AST_kind;
@@ -414,6 +422,7 @@ struct AST {
     Prefix_AST      *prefix;
     Unary_term_AST  *unary_term;
     Unary_not_AST   *unary_not;
+    Cast_AST        *cast;
     Binary_expr     *bin_expr;
     Location loc;
 };
@@ -526,6 +535,7 @@ const char *expr_kind_as_str(AST_kind k) {
         case AST_PREFIX: return "PREFIX";
         case AST_UNARY_TERM: return "UNARY_TERM";
         case AST_UNARY_NOT: return "UNARY_NOT";
+        case AST_CAST: return "CAST";
         case AST_BINARY: return "BINARY";
         case AST_COUNT:
         default: ASSERT(false, "UNREACHABLE!");
@@ -573,6 +583,10 @@ void print_ast_as_value(FILE *f, AST e) {
         case AST_UNARY_NOT: {
              fprintf(f, " %s ", token_type_as_str(e.unary_not->operator.type));
              print_ast_as_value(f, *e.unary_not->operand);
+        } break;
+        case AST_CAST: {
+             fprintf(f, "( "SV_FMT" ) ", SV_ARG(e.cast->type.lexeme));
+             print_ast_as_value(f, *e.cast->ast);
         } break;
         case AST_PRIMARY: {
             print_primary_expr(f, e.prim_expr);
@@ -841,6 +855,7 @@ AST *parse_access(Arena *arena, Parser *p);
 AST *parse_prefix(Arena *arena, Parser *p);
 AST *parse_unary_term(Arena *arena, Parser *p);
 AST *parse_unary_not(Arena *arena, Parser *p);
+AST *parse_cast(Arena *arena, Parser *p);
 AST *parse_factor(Arena *arena, Parser *p);
 AST *parse_comparision(Arena *arena, Parser *p);
 AST *parse_term(Arena *arena, Parser *p);
@@ -917,12 +932,19 @@ AST *parse_primary(Arena *arena, Parser *p) {
             ast->prim_expr->value.kind = LIT_INT; // TODO: Should we introduce a LIT_NULL?
             ast->prim_expr->value.as.i = 0;
             return ast;
+        } else if (t.type == TK_TYPE) {
+            error_pretty(t.loc, (*p->lexer), "We didn't expect a type here");
+            return NULL;
         } else {
             printf("Unexpected Token: "), print_token(stdout, t); printf("\n");
             ASSERT(false, "^");
         }
     } else {
         parser_advance(p); // Skip (
+        if (parser_match(p, TK_RIGHT_PAREN)) {
+            error_pretty(parser_previous(p).loc, (*p->lexer), "Expected expression before )");
+            return NULL;
+        }
         AST *ast = parse(arena, p);
         if (parser_peek(p).type != TK_RIGHT_PAREN) {
             Token t = parser_peek(p);
@@ -1119,13 +1141,40 @@ AST *parse_unary_not(Arena *arena, Parser *p) {
     return parse_unary_term(arena, p);
 }
 
+AST *parse_cast(Arena *arena, Parser *p) {
+    Token t = parser_peek(p);
+
+    if (t.type == TK_LEFT_PAREN && parser_peek_by(p, 1).type == TK_TYPE) {
+        parser_advance(p); // Skip (
+        AST *ast = (AST *)arena_alloc(arena, sizeof(AST));
+        ast->loc = t.loc;
+        ast->cast = (Cast_AST *)arena_alloc(arena, sizeof(Cast_AST));
+        ast->kind = AST_CAST;
+        ast->cast->type = parser_advance(p);
+
+        if (!parser_match(p, TK_RIGHT_PAREN)) {
+            error_pretty(parser_peek(p).loc, (*p->lexer), "Expected ) after `"SV_FMT"` but got `%s`",
+                    SV_ARG(ast->cast->type.lexeme),
+                    token_type_as_str(parser_peek(p).type));
+            return NULL;
+        }
+
+        ast->cast->ast  = parse(arena, p);
+
+
+        return ast;
+    }
+
+    return parse_unary_not(arena, p);
+}
+
 AST *parse_factor(Arena *arena, Parser *p) {
-    AST *ast = parse_unary_not(arena, p);
+    AST *ast = parse_cast(arena, p);
     if (ast == NULL) return NULL;
 
     while (parser_match(p, TK_DIVIDE) || parser_match(p, TK_MULTIPLY)) {
         Token op = parser_previous(p);
-        AST *rhs = parse_unary_not(arena, p);
+        AST *rhs = parse_cast(arena, p);
         if (rhs == NULL) return rhs;
 
         AST *new_ast = (AST *)arena_alloc(arena, sizeof(AST));
@@ -1944,7 +1993,8 @@ int main(int argc, char **argv) {
 
     Parser p = make_parser(&l, tokens);
 
-    Arena arena = arena_make(0);
+    // TODO: Reallocing arena is causing memory issues
+    Arena arena = arena_make(32*1024);
 
     AST_refs ast_refs = {0};
 

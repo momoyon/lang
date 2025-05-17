@@ -1,0 +1,10 @@
+(int) 42;
+(string) "Hello, World!";
+(bool) true;
+(uint) myVariable;
+(float) (5 + 3) * 2;
+(bool) myFunction(arg1, arg2);
+(int) -myVariable;
+(char) array[index];
+(string) (myFunction() + " appended string");
+(int64) myVariable++;
