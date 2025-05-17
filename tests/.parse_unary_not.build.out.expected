@@ -1,0 +1,4 @@
+parse_unary_not.momo:1:0 [UNARY_NOT] ' ~ 1'
+parse_unary_not.momo:2:0 [UNARY_NOT] ' ~ 2'
+parse_unary_not.momo:3:0 [UNARY_NOT] ' ! true'
+parse_unary_not.momo:4:0 [UNARY_NOT] ' !  ! false'

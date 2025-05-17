@@ -285,6 +285,7 @@ typedef struct Funcall_AST Funcall_AST;
 typedef struct Subscript_AST Subscript_AST;
 typedef struct Access_AST Access_AST;
 typedef struct Unary_term_AST Unary_term_AST;
+typedef struct Unary_not_AST Unary_not_AST;
 typedef struct Suffix_AST Suffix_AST;
 typedef struct Prefix_AST Prefix_AST;
 typedef struct Primary_expr Primary_expr;
@@ -316,6 +317,11 @@ struct Literal {
 void print_literal(FILE *f, Literal value);
 
 struct Unary_term_AST {
+    Token operator;
+    AST *operand;
+};
+
+struct Unary_not_AST {
     Token operator;
     AST *operand;
 };
@@ -390,6 +396,7 @@ typedef enum {
     AST_ACCESS,
     AST_PREFIX,
     AST_UNARY_TERM,
+    AST_UNARY_NOT,
     AST_BINARY,
     AST_COUNT,
 } AST_kind;
@@ -405,6 +412,7 @@ struct AST {
     Access_AST      *access;
     Prefix_AST      *prefix;
     Unary_term_AST  *unary_term;
+    Unary_not_AST   *unary_not;
     Binary_expr     *bin_expr;
     Location loc;
 };
@@ -516,6 +524,7 @@ const char *expr_kind_as_str(AST_kind k) {
         case AST_ACCESS: return "ACCESS";
         case AST_PREFIX: return "PREFIX";
         case AST_UNARY_TERM: return "UNARY_TERM";
+        case AST_UNARY_NOT: return "UNARY_NOT";
         case AST_BINARY: return "BINARY";
         case AST_COUNT:
         default: ASSERT(false, "UNREACHABLE!");
@@ -559,6 +568,10 @@ void print_ast_as_value(FILE *f, AST e) {
         case AST_UNARY_TERM: {
              fprintf(f, " %s ", token_type_as_str(e.unary_term->operator.type));
              print_ast_as_value(f, *e.unary_term->operand);
+        } break;
+        case AST_UNARY_NOT: {
+             fprintf(f, " %s ", token_type_as_str(e.unary_not->operator.type));
+             print_ast_as_value(f, *e.unary_not->operand);
         } break;
         case AST_PRIMARY: {
             print_primary_expr(f, e.prim_expr);
@@ -806,6 +819,7 @@ AST *parse_subscript(Arena *arena, Parser *p);
 AST *parse_access(Arena *arena, Parser *p);
 AST *parse_prefix(Arena *arena, Parser *p);
 AST *parse_unary_term(Arena *arena, Parser *p);
+AST *parse_unary_not(Arena *arena, Parser *p);
 AST *parse_factor(Arena *arena, Parser *p);
 AST *parse_comparision(Arena *arena, Parser *p);
 AST *parse_term(Arena *arena, Parser *p);
@@ -1068,13 +1082,29 @@ AST *parse_unary_term(Arena *arena, Parser *p) {
     return parse_prefix(arena, p);
 }
 
+AST *parse_unary_not(Arena *arena, Parser *p) {
+    Token t = parser_peek(p);
+
+    if (t.type == TK_NOT || t.type == TK_BITWISE_NOT) {
+        AST *ast = (AST *)arena_alloc(arena, sizeof(AST));
+        ast->loc = t.loc;
+        ast->unary_not = (Unary_not_AST *)arena_alloc(arena, sizeof(Unary_not_AST));
+        ast->kind = AST_UNARY_NOT;
+        ast->unary_not->operator = parser_advance(p);
+        ast->unary_not->operand = parse_unary_not(arena, p);
+        return ast;
+    }
+
+    return parse_unary_term(arena, p);
+}
+
 AST *parse_factor(Arena *arena, Parser *p) {
-    AST *ast = parse_unary_term(arena, p);
+    AST *ast = parse_unary_not(arena, p);
     if (ast == NULL) return NULL;
 
     while (parser_match(p, TK_DIVIDE) || parser_match(p, TK_MULTIPLY)) {
         Token op = parser_previous(p);
-        AST *rhs = parse_unary_term(arena, p);
+        AST *rhs = parse_unary_not(arena, p);
         if (rhs == NULL) return rhs;
 
         AST *new_ast = (AST *)arena_alloc(arena, sizeof(AST));
