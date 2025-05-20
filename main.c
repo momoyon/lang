@@ -995,6 +995,13 @@ AST *parse_funcall(Arena *arena, Parser *p) {
         Token next = parser_peek(p);
         if (next.type == TK_RIGHT_PAREN) {
             parser_advance(p); // Skip )
+            // if (parser_peek(p).type == TK_DOT) {
+            //     AST *access_ast = (AST *)arena_alloc(arena, sizeof(AST));
+            //     access_ast->loc = parser_peek(p).loc;
+            //     access_ast->kind = AST_ACCESS;
+            //     access_ast->access = (Access_AST *)arena_alloc(arena, sizeof(Access_AST));
+            //     access_ast->access->
+            // }
             return ast;
         } else {
             while (true) {
