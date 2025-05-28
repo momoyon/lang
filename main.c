@@ -123,11 +123,20 @@ static bool DEBUG_PRINT = false;
 /// NOTE: Location
 typedef struct {
     const char *filename;
-    int line;
+    int line; // NOTE: Lines start from 1!!!!!!!
     int col;
 } Location;
 
 void print_loc(FILE *f, Location loc);
+
+///
+
+/// NOTE: Error
+#define ERROR_BUF_CAP (1024)
+typedef struct {
+    char buf[ERROR_BUF_CAP];
+    Location loc;
+} Error;
 
 ///
 
@@ -225,8 +234,8 @@ typedef struct {
 /// NOTE: Lexer
 
 typedef struct {
-    size_t offset;
-    size_t count;
+    size_t bol;
+    size_t eol;
 } Line;
 
 typedef struct {
@@ -240,26 +249,27 @@ typedef struct {
     String_view src;
     size_t cur;
     size_t bol; // Beginning of Line
-    size_t line;
+    size_t current_line;
     Lines lines;
     const char *filename;
 } Lexer;
 
 Lexer make_lexer(const char *filename);
 Tokens lex(Lexer *l);
-bool next_token(Lexer *l, Token *t_out);
+void init_lexer_lines(Lexer *l);
+bool next_token(Lexer *l, Token *t_out, Error *err);
 String_view get_src_copy(Lexer *l);
 bool eof(Lexer *l);
 int col(Lexer *l);
 char current_char(Lexer *l);
 char next_char(Lexer *l);
 char consume_char(Lexer *l);
-void consume_ident(Lexer *l, String_view *ident_sv_out, Location *loc_out);
-void consume_string(Lexer *l, String_view *string_sv_out, Location *loc_out);
-void consume_character(Lexer *l, String_view *char_sv_out, Location *loc_out);
-void consume_single_char(Lexer *l, String_view *sv_out, Location *loc_out);
-void consume_number(Lexer *l, String_view *sv_out, Location *loc_out);
-void consume_comment(Lexer *l, String_view *sv_out, Location *loc_out);
+bool consume_ident(Lexer *l, String_view *ident_sv_out, Location *loc_out, Error *err);
+bool consume_string(Lexer *l, String_view *string_sv_out, Location *loc_out, Error *err);
+bool consume_character(Lexer *l, String_view *char_sv_out, Location *loc_out, Error *err);
+bool consume_single_char(Lexer *l, String_view *sv_out, Location *loc_out, Error *err);
+bool consume_number(Lexer *l, String_view *sv_out, Location *loc_out, Error *err);
+bool consume_comment(Lexer *l, String_view *sv_out, Location *loc_out, Error *err);
 void left_trim(Lexer *l);
 void free_lexer(Lexer *l);
 
@@ -488,7 +498,7 @@ void print_loc(FILE *f, Location loc) {
         putc(' ', stderr);\
         ASSERT(0 <= ((loc).line-1) && (size_t)((loc).line-1) <= (lexer).lines.count-1, "Should be in range");\
         Line line = (lexer).lines.items[(loc).line-1];\
-        String_view line_sv = sv_get_part((lexer).src, line.offset, line.offset + line.count);\
+        String_view line_sv = sv_get_part((lexer).src, line.bol, line.eol);\
         error(fmt, ##__VA_ARGS__);\
         printf(SV_FMT"\n", SV_ARG(line_sv));\
         printf("%*s^\n", (loc).col, "");\
@@ -1288,6 +1298,17 @@ AST *parse(Arena *arena, Parser *p) {
 Lexer make_lexer(const char *filename) {
     int file_size = -1;
     const char *buf = read_file(filename, &file_size);
+
+    int cr_count = 0;
+    for (int i = 0; i < file_size; ++i) {
+        if (buf[i] == '\r') {
+            cr_count++;
+        }
+    }
+    if (cr_count > 0) {
+        log_warning("%d Carriage Returns found!", cr_count);
+        exit(1);
+    }
     if (file_size == -1) {
         exit(1);
     }
@@ -1295,7 +1316,7 @@ Lexer make_lexer(const char *filename) {
         .src = sv_from_cstr(buf),
         .cur = 0,
         .bol = 0,
-        .line = 1,
+        .current_line = 1,
         .filename = filename,
     };
 
@@ -1377,7 +1398,8 @@ int not_number_or_ident_predicate(int ch) {
     return !(isalpha(ch) || ch == '_' || isdigit(ch));
 }
 
-void consume_ident(Lexer *l, String_view *ident_sv_out, Location *loc_out) {
+bool consume_ident(Lexer *l, String_view *ident_sv_out, Location *loc_out, Error *err) {
+    (void)err;
     // Identifiers can start with [a-z][A-Z]_ and contain [0-9] after the first char
     ASSERT(isalpha(current_char(l)) || current_char(l) == '_', "Called consume_identifier() at the wrong character!");
     // NOTE: Since sv operations modify the sv
@@ -1390,16 +1412,17 @@ void consume_ident(Lexer *l, String_view *ident_sv_out, Location *loc_out) {
         ident_sv_out->count += rest_of_the_ident.count;
     }
 
-
     loc_out->filename = l->filename;
-    loc_out->line     = l->line;
+    loc_out->line     = l->current_line;
     loc_out->col      = col(l);
 
     // Advance by the len of ident
     l->cur += ident_sv_out->count;
+
+    return true;
 }
 
-void consume_string(Lexer *l, String_view *string_sv_out, Location *loc_out) {
+bool consume_string(Lexer *l, String_view *string_sv_out, Location *loc_out, Error *err) {
     ASSERT(current_char(l) == '"', "We except '\"' to be the current_char here...");
 
     // Eat "
@@ -1409,22 +1432,25 @@ void consume_string(Lexer *l, String_view *string_sv_out, Location *loc_out) {
     *string_sv_out = sv_lpop_until_char(&src_copy, '"');
 
     loc_out->filename = l->filename;
-    loc_out->line     = l->line;
+    loc_out->line     = l->current_line;
     loc_out->col      = col(l);
 
     // Advance by the len of sv
     l->cur += string_sv_out->count;
 
     if (eof(l)) {
-        error_pretty((*loc_out), (*l), "Unterminated string!");
-        exit(1);
+        err->loc = *loc_out;
+        stbsp_snprintf(err->buf, ERROR_BUF_CAP, "Unterminted String");
+        return false;
     }
 
     // Eat "
     consume_char(l);
+
+    return true;
 }
 
-void consume_character(Lexer *l, String_view *char_sv_out, Location *loc_out) {
+bool consume_character(Lexer *l, String_view *char_sv_out, Location *loc_out, Error *err) {
     ASSERT(current_char(l) == '\'', "We except '\'' to be the current_char here...");
 
     // Eat '
@@ -1433,41 +1459,53 @@ void consume_character(Lexer *l, String_view *char_sv_out, Location *loc_out) {
     String_view src_copy = get_src_copy(l);
 
     loc_out->filename = l->filename;
-    loc_out->line     = l->line;
+    loc_out->line     = l->current_line;
     loc_out->col      = col(l);
 
     *char_sv_out = sv_lpop(&src_copy, 1);
 
     l->cur += 1;
 
-    if (current_char(l) != '\'') {
-        error_pretty(*loc_out, *l, "Expected `'`, but got `%ch`", current_char(l));
-        exit(1);
-    }
     if (eof(l)) {
-        error_pretty(*loc_out, *l, "Unterminated char!");
-        exit(1);
+        err->loc = *loc_out;
+        stbsp_snprintf(err->buf, ERROR_BUF_CAP, "Unterminated char!");
+        return false;
     }
+    if (current_char(l) != '\'') {
+        err->loc = *loc_out;
+        char c = current_char(l);
+        if (c == '\n')
+            stbsp_snprintf(err->buf, ERROR_BUF_CAP, "Expected `'`, but got `EOF`");
+        else
+            stbsp_snprintf(err->buf, ERROR_BUF_CAP, "Expected `'`, but got `%c`", current_char(l));
+        return false;
+    }
+
 
     // Eat '
     consume_char(l);
+
+    return true;
 }
 
-void consume_single_char(Lexer *l, String_view *sv_out, Location *loc_out) {
-
+bool consume_single_char(Lexer *l, String_view *sv_out, Location *loc_out, Error *err) {
+    (void)err;
     String_view src_copy = get_src_copy(l);
 
     *sv_out = sv_lpop(&src_copy, 1);
 
     loc_out->filename = l->filename;
-    loc_out->line     = l->line;
+    loc_out->line     = l->current_line;
     loc_out->col      = col(l);
 
     // Advance by the len of sv
     l->cur += sv_out->count;
+
+    return true;
 }
 
-void consume_number(Lexer *l, String_view *sv_out, Location *loc_out) {
+bool consume_number(Lexer *l, String_view *sv_out, Location *loc_out, Error *err) {
+    (void)err;
     ASSERT(isdigit(current_char(l)), "We expect a number bro...");
 
     String_view src_copy = get_src_copy(l);
@@ -1475,7 +1513,7 @@ void consume_number(Lexer *l, String_view *sv_out, Location *loc_out) {
     *sv_out = sv_lpop_until_predicate(&src_copy, not_number_predicate);
 
     loc_out->filename = l->filename;
-    loc_out->line     = l->line;
+    loc_out->line     = l->current_line;
     loc_out->col      = col(l);
 
     if (src_copy.data[0] == '.') {
@@ -1493,9 +1531,11 @@ void consume_number(Lexer *l, String_view *sv_out, Location *loc_out) {
 
     // Advance by the len of sv
     l->cur += sv_out->count;
+
+    return true;
 }
 
-void consume_comment(Lexer *l, String_view *sv_out, Location *loc_out) {
+bool consume_comment(Lexer *l, String_view *sv_out, Location *loc_out, Error *err) {
     ASSERT(current_char(l) == '/', "We expect a comment to start with '/'...");
 
     // 0 means its after EOF
@@ -1507,11 +1547,12 @@ void consume_comment(Lexer *l, String_view *sv_out, Location *loc_out) {
         case '\n': {
             Location loc = {
                 .filename = l->filename,
-                .line = l->line,
+                .line = l->current_line,
                 .col = col(l),
             };
-            error_pretty(loc, *l, "Unterminated comment!");
-            exit(1);
+            err->loc = loc;
+            stbsp_snprintf(err->buf, ERROR_BUF_CAP, "Unterminated comment!");
+            return false;
         } break;
         case '/': {
             // Eat /
@@ -1522,7 +1563,7 @@ void consume_comment(Lexer *l, String_view *sv_out, Location *loc_out) {
             *sv_out = sv_lpop_until_char(&src_copy, '\n');
 
             loc_out->filename = l->filename;
-            loc_out->line     = l->line;
+            loc_out->line     = l->current_line;
             loc_out->col      = col(l);
 
             // Advance by the len of sv
@@ -1538,7 +1579,7 @@ void consume_comment(Lexer *l, String_view *sv_out, Location *loc_out) {
             *sv_out = sv_lpop_until_string(&src_copy, "*/");
 
             loc_out->filename = l->filename;
-            loc_out->line     = l->line;
+            loc_out->line     = l->current_line;
             loc_out->col      = col(l);
 
             // Eat */
@@ -1552,20 +1593,13 @@ void consume_comment(Lexer *l, String_view *sv_out, Location *loc_out) {
             ASSERT(false, "This shouldnt happen; if it did, you fucked up");
         } break;
     }
+
+    return true;
 }
 
-// TODO: Somehow remove '\r's because that is causing the col of EOF to be one off...
 void left_trim(Lexer *l) {
     while (!eof(l) && isspace(current_char(l))) {
-        if (current_char(l) == '\n') {
-            Line line = {
-                .offset = l->bol,
-                .count = col(l),
-            };
-            da_append(l->lines, line);
-            l->line += 1;
-            l->bol = l->cur + 1;
-        }
+        if (current_char(l) == '\n') l->current_line++;
         consume_char(l);
     }
 }
@@ -1578,7 +1612,7 @@ void left_trim(Lexer *l) {
     t_out->type = token_type;\
     t_out->loc = (Location) {\
         .filename = l->filename,\
-        .line = l->line,\
+        .line = l->current_line,\
         .col = col(l),\
     };\
     if (DEBUG_PRINT) {\
@@ -1590,7 +1624,42 @@ void left_trim(Lexer *l) {
     }\
     return true
 
-bool next_token(Lexer *l, Token *t_out) {
+void init_lexer_lines(Lexer *l) {
+    int nl_count = 0;
+    int bol = 0;
+    while (!eof(l)) {
+        char c = consume_char(l);
+        if (c == '\n') {
+            nl_count++;
+            Line line = {
+                .bol = bol,
+                .eol = l->cur-1, // NOTE: l->cur is the _NEXT_ char here because we consume the char above!!!
+            };
+
+            // log_debug("L %zu ~ %zu", line.bol, line.eol);
+            da_append(l->lines, line);
+
+            bol = line.eol + 1;
+        }
+    }
+    // log_debug("Newline count: %d", nl_count);
+    // log_debug("lines count: %zu", l->lines.count);
+
+    // log_debug("SRC: `"SV_FMT"`", SV_ARG(l->src));
+    // for (size_t i = 0; i < l->lines.count; ++i) {
+    //     char eol = l->src.data[l->lines.items[i].eol];
+    //     if (eol != '\n') log_debug("EOL expected but got: %c", eol);
+    //     ASSERT(eol == '\n', "This should be a newline!");
+    //     String_view line_sv = sv_get_part(l->src, l->lines.items[i].bol, l->lines.items[i].eol);
+    //     log_debug("L%zu: `"SV_FMT"`", i, SV_ARG(line_sv));
+    // }
+
+    // NOTE: Reset the cursor so we can lex
+    ASSERT(nl_count == l->lines.count, "Newline count and lines count should match!");
+    l->cur = 0;
+}
+
+bool next_token(Lexer *l, Token *t_out, Error *err) {
     left_trim(l);
 
     if (eof(l)) return false;
@@ -1600,7 +1669,7 @@ bool next_token(Lexer *l, Token *t_out) {
     if (isalpha(ch) || ch == '_') {
         String_view ident_sv = {0};
         Location ident_loc = {0};
-        consume_ident(l, &ident_sv, &ident_loc);
+        consume_ident(l, &ident_sv, &ident_loc, err);
 
         t_out->lexeme = ident_sv;
         t_out->loc    = ident_loc;
@@ -1621,7 +1690,7 @@ bool next_token(Lexer *l, Token *t_out) {
         String_view number_sv = {0};
         Location number_loc = {0};
 
-        consume_number(l, &number_sv, &number_loc);
+        consume_number(l, &number_sv, &number_loc, err);
 
         t_out->lexeme = number_sv;
         t_out->loc    = number_loc;
@@ -1645,7 +1714,7 @@ bool next_token(Lexer *l, Token *t_out) {
                     String_view comment_sv = {0};
                     Location comment_loc = {0};
 
-                    consume_comment(l, &comment_sv, &comment_loc);
+                    consume_comment(l, &comment_sv, &comment_loc, err);
 
                     t_out->lexeme = comment_sv;
                     t_out->loc    = comment_loc;
@@ -1667,7 +1736,7 @@ bool next_token(Lexer *l, Token *t_out) {
         case '"': {
             String_view string_sv = {0};
             Location string_loc = {0};
-            consume_string(l, &string_sv, &string_loc);
+            consume_string(l, &string_sv, &string_loc, err);
 
             t_out->lexeme = string_sv;
             t_out->loc    = string_loc;
@@ -1682,7 +1751,7 @@ bool next_token(Lexer *l, Token *t_out) {
         case '\'': {
             String_view char_sv = {0};
             Location char_loc = {0};
-            consume_character(l, &char_sv, &char_loc);
+            consume_character(l, &char_sv, &char_loc, err);
             t_out->lexeme = char_sv;
             t_out->loc    = char_loc;
             t_out->type   = TK_CHAR;
@@ -1899,16 +1968,24 @@ bool next_token(Lexer *l, Token *t_out) {
 Tokens lex(Lexer *l) {
     Tokens tokens = {0};
     Token t = {0};
-    while (next_token(l, &t)) {
+    Error err = {0};
+
+    while (next_token(l, &t, &err)) {
         da_append(tokens, t);
     }
+
     Line last_line = l->lines.items[l->lines.count-1];
+    t.loc.col = last_line.eol - last_line.bol;
+    t.loc.line = l->current_line-1;
     t.lexeme = SV("EOF");
     t.loc.filename = l->filename;
-    t.loc.line = l->line-1;
-    t.loc.col = last_line.count;
     t.type = TK_EOF;
     da_append(tokens, t);
+
+    if (*err.buf != '\0') {
+        error_pretty(err.loc, *l, "%s", err.buf);
+        exit(1);
+    }
 
     return tokens;
 }
@@ -1993,6 +2070,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    init_lexer_lines(&l);
     Tokens tokens = lex(&l);
 
     if (dump_tokens) {
@@ -2005,7 +2083,6 @@ int main(int argc, char **argv) {
 
     Parser p = make_parser(&l, tokens);
 
-    // TODO: Reallocing arena is causing memory issues
     Arena arena = arena_make(32*1024);
 
     AST_refs ast_refs = {0};
