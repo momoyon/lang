@@ -10,6 +10,14 @@
 #include <assert.h>
 #include <limits.h>
 
+#if defined(_WIN32)
+// NOTE: Don't include unwanted files to speed up compilation
+#define WIN32_LEAN_AND_MEAN
+#define NOCOMM
+#include <windows.h>
+#undef C_ASSERT // Bruh
+#endif
+
 // Remove Prefix
 #ifdef COMMONLIB_REMOVE_PREFIX
 #define ASSERT C_ASSERT
@@ -115,12 +123,21 @@ typedef const wchar* wstr;
 
 
 // Macros
+#if defined(_MSC_VER) && !defined(__clang__) && !defined(__INTEL_COMPILER)
+#define C_ASSERT(condition, msg) do {\
+                if (!(condition)) {\
+                        fprintf(stderr, "%s:%d:0 [ASSERTION FAILED] %s: %s", __FILE__, __LINE__, #condition, msg);\
+                        DebugBreak();\
+                }\
+        } while (0)
+#else
 #define C_ASSERT(condition, msg) do {\
                 if (!(condition)) {\
                         fprintf(stderr, "%s:%d:0 [ASSERTION FAILED] %s: %s", __FILE__, __LINE__, #condition, msg);\
                         exit(1);\
                 }\
         } while (0)
+#endif // defined(_MSC_VER) && !defined(__clang__) && !defined(__INTEL_COMPILER)
 
 #define C_ARRAY_LEN(arr) (sizeof(arr) / sizeof(arr[0]))
 
@@ -393,10 +410,27 @@ const char *c_read_file(const char* filename, int *file_size) {
 
     size_t read = fread((char*)result, sizeof(char), fsize, f);
 
-    *file_size = (int)read;
+    // Process the result to remove '\r' characters
+    char* cleaned_result = malloc(read + 1); // Allocate memory for cleaned result
+    if (cleaned_result == NULL) {
+        fprintf(stderr, "Memory allocation failed\n");
+        free(result);
+        return NULL;
+    }
 
-    // set null-terminator
-    result[read] = '\0';
+    size_t j = 0; // Index for cleaned_result
+    for (size_t i = 0; i < read; i++) {
+        if (result[i] != '\r') { // Skip '\r' characters
+            cleaned_result[j++] = result[i];
+        }
+    }
+    cleaned_result[j] = '\0'; // Null-terminate the cleaned result
+
+    free(result); // Free the original result
+    *file_size = (int)j; // Update the file size without '\r'
+    return cleaned_result; // Return the cleaned result
+
+    *file_size = (int)read;
 
  defer:
     if (f) fclose(f);
@@ -732,7 +766,7 @@ c_String_view c_sv_get_part(c_String_view sv, int from, int to) {
     from = clampi(from, 0, sv.count);
     to   = clampi(to, from, sv.count);
 
-    String_view range = {
+    c_String_view range = {
         .data = (char*)(sv.data + from),
         .count = (size_t)(to - from),
     };

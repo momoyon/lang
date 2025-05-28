@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -Wextra -ggdb -I./include -Wswitch-enum -Wno-char-subscripts
+CFLAGS=-Wall -Wextra -ggdb -I./include -Wswitch-enum -Wno-char-subscripts -Wno-sign-compare
 LDFLAGS=-L./lib
 LIBS=
 
