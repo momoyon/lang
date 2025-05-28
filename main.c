@@ -1370,7 +1370,7 @@ int col(Lexer *l) {
 }
 
 char current_char(Lexer *l) {
-    ASSERT(!eof(l), "Trying to get char after EOF");
+    if (eof(l)) return '\0';
     return l->src.data[l->cur];
 }
 
@@ -1429,6 +1429,8 @@ bool consume_string(Lexer *l, String_view *string_sv_out, Location *loc_out, Err
     consume_char(l);
     String_view src_copy = get_src_copy(l);
 
+    // TODO: Here we parse the string until `"` EVEN IF its on multiple lines...
+    // Should we allow this?
     *string_sv_out = sv_lpop_until_char(&src_copy, '"');
 
     loc_out->filename = l->filename;
@@ -1438,7 +1440,7 @@ bool consume_string(Lexer *l, String_view *string_sv_out, Location *loc_out, Err
     // Advance by the len of sv
     l->cur += string_sv_out->count;
 
-    if (eof(l)) {
+    if (current_char(l) != '"') {
         err->loc = *loc_out;
         stbsp_snprintf(err->buf, ERROR_BUF_CAP, "Unterminted String");
         return false;
